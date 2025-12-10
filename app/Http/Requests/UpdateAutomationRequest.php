@@ -1,0 +1,33 @@
+<?php
+
+namespace App\Http\Requests;
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class UpdateAutomationRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()?->hasAnyRole(['admin', 'automation', 'super-admin']) ?? false;
+    }
+
+    /**
+     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     */
+    public function rules(): array
+    {
+        $automationId = $this->route('automation')?->id;
+
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:255', Rule::unique('automations', 'slug')->ignore($automationId)],
+            'command' => ['required', 'string', 'max:255'],
+            'cron_expression' => ['required', 'string', 'max:255'],
+            'is_active' => ['sometimes', 'boolean'],
+            'timeout_seconds' => ['nullable', 'integer', 'min:1'],
+            'run_via' => ['required', Rule::in(['artisan', 'later'])],
+            'notify_on_fail' => ['sometimes', 'boolean'],
+        ];
+    }
+}

@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\AutomationController;
+use App\Http\Controllers\AutomationRunController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -30,6 +32,22 @@ Route::middleware(['auth', 'role:super-admin'])
     ->group(function () {
         Route::resource('roles', \App\Http\Controllers\Admin\RoleManagementController::class)->except(['show']);
         Route::resource('permissions', \App\Http\Controllers\Admin\PermissionManagementController::class)->only(['index', 'store', 'destroy']);
+    });
+
+Route::middleware(['auth', 'role:admin|automation|super-admin'])
+    ->prefix('admin/automations')
+    ->name('admin.automations.')
+    ->group(function () {
+        Route::get('/', [AutomationController::class, 'index'])->name('index');
+        Route::get('/create', [AutomationController::class, 'create'])->name('create');
+        Route::post('/', [AutomationController::class, 'store'])->name('store');
+        Route::get('/{automation}/edit', [AutomationController::class, 'edit'])->name('edit');
+        Route::put('/{automation}', [AutomationController::class, 'update'])->name('update');
+        Route::delete('/{automation}', [AutomationController::class, 'destroy'])->name('destroy');
+        Route::post('/{automation}/toggle', [AutomationController::class, 'toggle'])->name('toggle');
+        Route::post('/{automation}/run', [AutomationRunController::class, 'run'])->name('run');
+        Route::get('/{automation}/logs', [AutomationController::class, 'logs'])->name('logs');
+        Route::get('/logs/{log}', [AutomationController::class, 'showLog'])->name('log.show');
     });
 
 Route::middleware('auth')->group(function () {

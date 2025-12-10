@@ -26,6 +26,16 @@
             'icon' => 'key-fill',
         ];
     }
+
+    if (auth()->user()->hasAnyRole(['admin', 'automation', 'super-admin'])) {
+        $links[] = [
+            'label' => 'Automations',
+            'description' => 'Manage automation jobs',
+            'href' => route('admin.automations.index'),
+            'active' => request()->routeIs('admin.automations.*'),
+            'icon' => 'gear-fill',
+        ];
+    }
 @endphp
 
 <div class="position-sticky pt-3 sidebar-sticky">
