@@ -7,7 +7,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([
         \App\Console\Commands\TestAutomationCommand::class,
-        \App\Console\Commands\RunAutomations::class,
+        \App\Console\Commands\RunAutomation::class,
     ])
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
