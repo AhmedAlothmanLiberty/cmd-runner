@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Cron\CronExpression;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Throwable;
 
 class Automation extends Model
 {
@@ -42,6 +45,37 @@ class Automation extends Model
 
     public function logs(): HasMany
     {
-        return $this->hasMany(AutomationLog::class);
+        return $this->hasMany(AutomationLog::class)->latest();
+    }
+
+    public function shouldRunNow(): bool
+    {
+        if (! $this->is_active) {
+            return false;
+        }
+
+        $now = now()->startOfMinute();
+
+        try {
+            $cron = new CronExpression($this->cron_expression);
+        } catch (Throwable $exception) {
+            Log::warning('Invalid cron expression for automation', [
+                'automation_id' => $this->id,
+                'cron_expression' => $this->cron_expression,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return false;
+        }
+
+        if (! $cron->isDue($now)) {
+            return false;
+        }
+
+        if (is_null($this->last_run_at)) {
+            return true;
+        }
+
+        return $this->last_run_at->lt($now);
     }
 }
