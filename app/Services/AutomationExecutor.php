@@ -10,64 +10,72 @@ use Throwable;
 
 class AutomationExecutor
 {
-    public function run(Automation $automation, string $triggeredBy = 'system'): AutomationLog
-    {
-        $start = microtime(true);
+public function run(Automation $automation, string $triggeredBy = 'system'): ?AutomationLog
+{
+    // 1) Check if automation should run
+    if (! $automation->shouldRunNow()) {
+        return null; // No log created because nothing happened
+    }
 
-        // Create log entry
-        $log = AutomationLog::create([
-            'automation_id' => $automation->id,
-            'started_at'    => now(),
-            'status'        => 'running',
-            'runtime_ms'    => 0,
-            'triggered_by'  => $triggeredBy,
+    // 2) Begin execution
+    $start = microtime(true);
+
+    // 3) Create log
+    $log = AutomationLog::create([
+        'automation_id' => $automation->id,
+        'started_at'    => now(),
+        'status'        => 'running',
+        'runtime_ms'    => 0,
+        'triggered_by'  => $triggeredBy,
+    ]);
+
+    try {
+        // Execute command
+        Artisan::call($automation->command);
+
+        $output     = Artisan::output();
+        $runtimeMs  = (int) round((microtime(true) - $start) * 1000);
+
+        // Update log → success
+        $log->update([
+            'finished_at' => now(),
+            'status'      => 'success',
+            'runtime_ms'  => $runtimeMs,
+            'output'      => $output,
         ]);
 
-        try {
+        // Update automation meta
+        $automation->update([
+            'last_run_at'     => now(),
+            'last_run_status' => 'success',
+            'last_runtime_ms' => $runtimeMs,
+        ]);
 
-            Artisan::call($automation->command);
+    } catch (Throwable $e) {
 
+        $runtimeMs  = (int) round((microtime(true) - $start) * 1000);
 
-            // Execution results
-            $output     = Artisan::output();
-            $runtimeMs  = (int) round((microtime(true) - $start) * 1000);
+        // Update log → failed
+        $log->update([
+            'finished_at' => now(),
+            'status'      => 'failed',
+            'runtime_ms'  => $runtimeMs,
+            'error'       => $e->getMessage(),
+        ]);
 
-            // Update log
-            $log->update([
-                'finished_at' => now(),
-                'status'      => 'success',
-                'runtime_ms'  => $runtimeMs,
-                'output'      => $output,
-            ]);
+        $automation->update([
+            'last_run_at'     => now(),
+            'last_run_status' => 'failed',
+            'last_runtime_ms' => $runtimeMs,
+        ]);
 
-            // Update automation info
-            $automation->update([
-                'last_run_at'     => now(),
-                'last_run_status' => 'success',
-                'last_runtime_ms' => $runtimeMs,
-            ]);
-        } catch (Throwable $e) {
-            $runtimeMs  = (int) round((microtime(true) - $start) * 1000);
-
-            $log->update([
-                'finished_at' => now(),
-                'status'      => 'failed',
-                'runtime_ms'  => $runtimeMs,
-                'error'       => $e->getMessage(),
-            ]);
-
-            $automation->update([
-                'last_run_at'     => now(),
-                'last_run_status' => 'failed',
-                'last_runtime_ms' => $runtimeMs,
-            ]);
-
-            Log::error('Automation failed', [
-                'automation_id' => $automation->id,
-                'error'         => $e->getMessage(),
-            ]);
-        }
-
-        return $log;
+        Log::error('Automation failed', [
+            'automation_id' => $automation->id,
+            'error'         => $e->getMessage(),
+        ]);
     }
+
+    return $log;
+}
+
 }

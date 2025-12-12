@@ -23,6 +23,29 @@
     @error('cron_expression')<div class="invalid-feedback">{{ $message }}</div>@enderror
 </div>
 
+@php
+    $timezoneDefault = 'America/Los_Angeles';
+    $selectedTimezone = old('timezone', $automation->timezone ?? $timezoneDefault);
+@endphp
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <label for="timezone" class="form-label">Timezone</label>
+        <select name="timezone" id="timezone" class="form-select @error('timezone') is-invalid @enderror">
+            @foreach (\DateTimeZone::listIdentifiers() as $timezone)
+                <option value="{{ $timezone }}" @selected($selectedTimezone === $timezone)>{{ $timezone }}</option>
+            @endforeach
+        </select>
+        @error('timezone')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+    <div class="col-md-6">
+        <label for="daily_time" class="form-label">Daily Time (HH:MM)</label>
+        <input type="time" name="daily_time" id="daily_time" class="form-control @error('daily_time') is-invalid @enderror" value="{{ old('daily_time', $automation->daily_time ?? '') }}" placeholder="14:30">
+        <div class="form-text">Optional: enforce a specific daily time (24h format) in the selected timezone.</div>
+        @error('daily_time')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+</div>
+
 <div class="row g-3">
     <div class="col-md-4">
         <label for="timeout_seconds" class="form-label">Timeout (seconds)</label>

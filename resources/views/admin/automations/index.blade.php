@@ -27,7 +27,7 @@
                         <tr>
                             <th>Name</th>
                             <th>Command</th>
-                            <th>Cron</th>
+                            <th>Schedule</th>
                             <th>Status</th>
                             <th>Last run</th>
                             <th class="text-end">Actions</th>
@@ -36,23 +36,46 @@
                     <tbody>
                         @forelse ($automations as $automation)
                             <tr>
-                                <td class="fw-semibold">{{ $automation->name }}</td>
-                                <td><code>{{ $automation->command }}</code></td>
-                                <td><code>{{ $automation->cron_expression }}</code></td>
-                                <td>
-                                    <span class="badge {{ $automation->is_active ? 'text-bg-success' : 'text-bg-secondary' }}">
-                                        {{ $automation->is_active ? 'Active' : 'Inactive' }}
-                                    </span>
-                                    @if ($automation->last_run_status)
-                                        <span class="badge {{ $automation->last_run_status === 'success' ? 'text-bg-success' : 'text-bg-danger' }} ms-1">
-                                            Last: {{ $automation->last_run_status }}
-                                        </span>
-                                    @endif
+                                <td class="fw-semibold">
+                                    <div class="d-flex flex-column">
+                                        <span>{{ $automation->name }}</span>
+                                        <small class="text-muted">{{ $automation->slug }}</small>
+                                    </div>
                                 </td>
                                 <td>
-                                    <small class="text-muted">
+                                    <div class="d-flex flex-column gap-1">
+                                        <code>{{ $automation->command }}</code>
+                                        <span class="badge text-bg-light text-muted align-self-start">{{ strtoupper($automation->run_via) }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-column small">
+                                        <code>{{ $automation->cron_expression }}</code>
+                                        @if ($automation->daily_time)
+                                            <span class="text-muted">Daily at {{ $automation->daily_time }}</span>
+                                        @endif
+                                        <span class="text-muted">{{ $automation->timezone ?? ('App TZ: ' . config('app.timezone')) }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-column gap-1">
+                                        <span class="badge {{ $automation->is_active ? 'text-bg-success' : 'text-bg-secondary' }}">
+                                            {{ $automation->is_active ? 'Active' : 'Inactive' }}
+                                        </span>
+                                        @if ($automation->last_run_status)
+                                            <span class="badge {{ $automation->last_run_status === 'success' ? 'text-bg-success' : 'text-bg-danger' }}">
+                                                Last: {{ $automation->last_run_status }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="small text-muted">
                                         {{ $automation->last_run_at ? $automation->last_run_at->diffForHumans() : '—' }}
-                                    </small>
+                                        @if ($automation->last_runtime_ms)
+                                            <div>Runtime: {{ $automation->last_runtime_ms }} ms</div>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm" role="group">
