@@ -75,19 +75,19 @@ class Automation extends Model
         }
 
         // 3) Handle DAILY fixed-time logic (e.g., 01:00 LA time)
-        if ($this->daily_time) {
-            if ($now->format('H:i') !== $this->daily_time) {
-                return false;
-            }
+        $cronExpression = $this->cronExpressionWithDailyTime();
+
+        if (! $cronExpression) {
+            return false;
         }
 
-        // 4) Evaluate CRON expression
+        // 4) Evaluate CRON expression (daily_time baked into the cron if present)
         try {
-            $cron = new CronExpression($this->cron_expression);
+            $cron = new CronExpression($cronExpression);
         } catch (Throwable $exception) {
             Log::warning('Invalid cron expression for automation', [
                 'automation_id'  => $this->id,
-                'cron_expression' => $this->cron_expression,
+                'cron_expression' => $cronExpression,
                 'error'          => $exception->getMessage(),
             ]);
 
@@ -136,38 +136,53 @@ class Automation extends Model
             $now = now($timezone)->startOfMinute();
         }
 
+        $cronExpression = $this->cronExpressionWithDailyTime();
+
+        if (! $cronExpression) {
+            return null;
+        }
+
         try {
-            $cron = new CronExpression($this->cron_expression);
+            $cron = new CronExpression($cronExpression);
+            $next = $cron->getNextRunDate($now, 0, true, $timezone);
+
+            return Carbon::instance($next)->setTimezone($timezone);
         } catch (Throwable $exception) {
-            Log::warning('Invalid cron expression for automation (next run calc)', [
+            Log::warning('Unable to calculate next run for automation', [
                 'automation_id' => $this->id,
-                'cron_expression' => $this->cron_expression,
+                'cron_expression' => $cronExpression,
                 'error' => $exception->getMessage(),
             ]);
 
             return null;
         }
+    }
 
+    protected function cronExpressionWithDailyTime(): ?string
+    {
         if (! $this->daily_time) {
-            $next = $cron->getNextRunDate($now, 0, true, $timezone);
-
-            return Carbon::instance($next)->setTimezone($timezone);
+            return $this->cron_expression;
         }
 
-        $candidate = $now->copy()->setTimeFromTimeString($this->daily_time);
+        $parts = preg_split('/\s+/', trim($this->cron_expression));
 
-        if ($candidate->lt($now)) {
-            $candidate->addDay();
+        if (! $parts || count($parts) < 5) {
+            Log::warning('Cron expression missing required parts for daily time merge', [
+                'automation_id' => $this->id,
+                'cron_expression' => $this->cron_expression,
+            ]);
+
+            return null;
         }
 
-        for ($i = 0; $i <= 366; $i++) {
-            if ($cron->isDue($candidate)) {
-                return $candidate->copy();
-            }
+        [$hour, $minute] = explode(':', $this->daily_time);
 
-            $candidate->addDay();
-        }
+        $parts[0] = (string) (int) $minute; // minute
+        $parts[1] = (string) (int) $hour;   // hour
 
-        return null;
+        // Preserve only the first 5 parts (minute hour dom month dow)
+        $parts = array_slice($parts, 0, 5);
+
+        return implode(' ', $parts);
     }
 }
