@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Automation;
 use App\Models\AutomationLog;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -25,10 +24,6 @@ class AutomationExecutor
         ]);
 
         try {
-
-            $kernel = app(\Illuminate\Contracts\Console\Kernel::class);
-            $kernel->bootstrap();
-            $kernel->commandLoader->load($kernel->all());
 
             Artisan::call($automation->command);
 
