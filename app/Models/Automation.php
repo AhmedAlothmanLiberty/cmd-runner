@@ -6,6 +6,7 @@ use Cron\CronExpression;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -112,5 +113,61 @@ class Automation extends Model
 
         // 6) All conditions passed → should run
         return true;
+    }
+
+    public function nextRunAt(): ?Carbon
+    {
+        if (! $this->is_active) {
+            return null;
+        }
+
+        $timezone = $this->timezone ?: config('app.timezone');
+
+        try {
+            $now = now($timezone)->startOfMinute();
+        } catch (Throwable $exception) {
+            Log::warning('Invalid timezone for automation', [
+                'automation_id' => $this->id,
+                'timezone' => $this->timezone,
+                'error' => $exception->getMessage(),
+            ]);
+
+            $timezone = config('app.timezone');
+            $now = now($timezone)->startOfMinute();
+        }
+
+        try {
+            $cron = new CronExpression($this->cron_expression);
+        } catch (Throwable $exception) {
+            Log::warning('Invalid cron expression for automation (next run calc)', [
+                'automation_id' => $this->id,
+                'cron_expression' => $this->cron_expression,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        if (! $this->daily_time) {
+            $next = $cron->getNextRunDate($now, 0, true, $timezone);
+
+            return Carbon::instance($next)->setTimezone($timezone);
+        }
+
+        $candidate = $now->copy()->setTimeFromTimeString($this->daily_time);
+
+        if ($candidate->lt($now)) {
+            $candidate->addDay();
+        }
+
+        for ($i = 0; $i <= 366; $i++) {
+            if ($cron->isDue($candidate)) {
+                return $candidate->copy();
+            }
+
+            $candidate->addDay();
+        }
+
+        return null;
     }
 }
