@@ -10,6 +10,7 @@ return Application::configure(basePath: dirname(__DIR__))
         \App\Console\Commands\TestAutomationCommand::class,
         \App\Console\Commands\RunAutomation::class,
         \Cmd\Reports\Console\Commands\SyncBalances::class,
+        \Cmd\Reports\Console\Commands\SyncBalancesHistory::class,
         \Cmd\Reports\Console\Commands\SeedCmdReportPermissions::class,
         \Cmd\Reports\Console\Commands\TestDatabaseConnections::class,
     ])
