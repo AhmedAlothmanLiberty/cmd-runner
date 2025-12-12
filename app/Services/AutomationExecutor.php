@@ -26,10 +26,12 @@ class AutomationExecutor
 
         try {
 
-            app(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            $kernel = app(\Illuminate\Contracts\Console\Kernel::class);
+            $kernel->bootstrap();
+            $kernel->commandLoader->load($kernel->all());
 
-            // Execute the command
             Artisan::call($automation->command);
+
 
             // Execution results
             $output     = Artisan::output();
