@@ -19,6 +19,8 @@ class Automation extends Model
         'slug',
         'command',
         'cron_expression',
+        'timezone',
+        'daily_time',
         'is_active',
         'timeout_seconds',
         'run_via',
@@ -50,19 +52,42 @@ class Automation extends Model
 
     public function shouldRunNow(): bool
     {
+        // 1) If automation is disabled → don't run
         if (! $this->is_active) {
             return false;
         }
 
-        $now = now()->startOfMinute();
+        // 2) Determine timezone (automation timezone > app timezone)
+        $timezone = $this->timezone ?: config('app.timezone');
 
+        try {
+            $now = now($timezone)->startOfMinute();
+        } catch (Throwable $exception) {
+            Log::warning('Invalid timezone for automation', [
+                'automation_id' => $this->id,
+                'timezone'      => $this->timezone,
+                'error'         => $exception->getMessage(),
+            ]);
+
+            $timezone = config('app.timezone');
+            $now = now($timezone)->startOfMinute();
+        }
+
+        // 3) Handle DAILY fixed-time logic (e.g., 01:00 LA time)
+        if ($this->daily_time) {
+            if ($now->format('H:i') !== $this->daily_time) {
+                return false;
+            }
+        }
+
+        // 4) Evaluate CRON expression
         try {
             $cron = new CronExpression($this->cron_expression);
         } catch (Throwable $exception) {
             Log::warning('Invalid cron expression for automation', [
-                'automation_id' => $this->id,
+                'automation_id'  => $this->id,
                 'cron_expression' => $this->cron_expression,
-                'error' => $exception->getMessage(),
+                'error'          => $exception->getMessage(),
             ]);
 
             return false;
@@ -72,10 +97,20 @@ class Automation extends Model
             return false;
         }
 
-        if (is_null($this->last_run_at)) {
-            return true;
+        // 5) Prevent double-run within the same minute
+        if (! is_null($this->last_run_at)) {
+            $lastRun = $this->last_run_at
+                ->copy()
+                ->timezone($timezone)
+                ->startOfMinute();
+
+            // If last run is the same minute → skip
+            if (! $lastRun->lt($now)) {
+                return false;
+            }
         }
 
-        return $this->last_run_at->lt($now);
+        // 6) All conditions passed → should run
+        return true;
     }
 }
