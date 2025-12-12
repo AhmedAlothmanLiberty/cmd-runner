@@ -6,8 +6,12 @@ use Illuminate\Foundation\Configuration\Middleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([
+        app_path('Console/Commands'),
         \App\Console\Commands\TestAutomationCommand::class,
         \App\Console\Commands\RunAutomation::class,
+        \Cmd\Reports\Console\Commands\SyncBalances::class,
+        \Cmd\Reports\Console\Commands\SeedCmdReportPermissions::class,
+        \Cmd\Reports\Console\Commands\TestDatabaseConnections::class,
     ])
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
