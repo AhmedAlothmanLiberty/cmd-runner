@@ -25,6 +25,9 @@ class AutomationExecutor
         ]);
 
         try {
+
+            app(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+
             // Execute the command
             Artisan::call($automation->command);
 
@@ -46,7 +49,6 @@ class AutomationExecutor
                 'last_run_status' => 'success',
                 'last_runtime_ms' => $runtimeMs,
             ]);
-
         } catch (Throwable $e) {
             $runtimeMs  = (int) round((microtime(true) - $start) * 1000);
 
