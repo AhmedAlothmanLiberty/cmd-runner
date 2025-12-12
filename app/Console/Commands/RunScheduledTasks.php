@@ -18,14 +18,21 @@ class RunScheduledTasks extends Command
      *
      * @var string
      */
-    protected $signature = 'automation:run';
+    protected $signature = 'automation:run-legacy';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Command description';
+    protected $description = 'Legacy automation runner (use automations:run instead)';
+
+    /**
+     * Hide legacy command from lists.
+     *
+     * @var bool
+     */
+    protected $hidden = true;
 
     /**
      * Execute the console command.

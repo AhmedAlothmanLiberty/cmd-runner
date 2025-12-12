@@ -8,8 +8,8 @@ use Illuminate\Console\Command;
 
 class RunAutomation extends Command
 {
-    protected $signature = 'automation:run';
-    protected $aliases = ['automations:run'];
+    protected $signature = 'automations:run';
+    protected $aliases = ['automation:run'];
     protected $description = 'Run all scheduled automations';
 
     public function handle(): int
