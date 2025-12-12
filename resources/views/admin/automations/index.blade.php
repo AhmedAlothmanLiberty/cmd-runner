@@ -30,6 +30,7 @@
                             <th>Schedule</th>
                             <th>Status</th>
                             <th>Last run</th>
+                            <th>Next run</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -77,6 +78,19 @@
                                         @endif
                                     </div>
                                 </td>
+                                <td>
+                                    @php $nextRun = $automation->nextRunAt(); @endphp
+                                    <div class="small text-muted">
+                                        @if (! $automation->is_active)
+                                            <span class="text-secondary">Inactive</span>
+                                        @elseif ($nextRun)
+                                            <div>{{ $nextRun->diffForHumans() }}</div>
+                                            <div class="text-nowrap">{{ $nextRun->format('Y-m-d H:i') }} ({{ $nextRun->getTimezone()->getName() }})</div>
+                                        @else
+                                            <span class="text-danger">Unable to calculate</span>
+                                        @endif
+                                    </div>
+                                </td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm" role="group">
                                         <a href="{{ route('admin.automations.edit', $automation) }}" class="btn btn-outline-secondary">Edit</a>
@@ -94,7 +108,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">No automations yet.</td>
+                                <td colspan="7" class="text-center text-muted py-4">No automations yet.</td>
                             </tr>
                         @endforelse
                     </tbody>
