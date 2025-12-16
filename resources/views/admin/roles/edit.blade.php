@@ -20,7 +20,15 @@
 
                 <div class="mb-3">
                     <label for="name" class="form-label">Role name</label>
-                    <input id="name" name="name" type="text" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $role->name) }}" required @if($role->name === 'super-admin') disabled @endif>
+                    <input
+                        id="name"
+                        name="name"
+                        type="text"
+                        class="form-control @error('name') is-invalid @enderror"
+                        value="{{ old('name', $role->name) }}"
+                        required
+                        @if($role->name === 'super-admin') readonly @endif
+                    >
                     @if($role->name === 'super-admin')
                         <small class="text-muted">Super admin role name cannot be changed.</small>
                     @else
@@ -34,39 +42,32 @@
                 <div class="mb-3">
                     <label for="permissions" class="form-label">Permissions</label>
                     @php
-                        $selectedPermissions = collect(old('permissions', $role->permissions->pluck('id')->toArray()));
+                        $selectedPermissions = old('permissions', $role->permissions->pluck('id')->toArray());
                     @endphp
-                    <select id="permissions" name="permissions[]" class="form-select @error('permissions') is-invalid @enderror" multiple>
-                        @foreach ($permissions as $permission)
-                            <option value="{{ $permission->id }}" @selected($selectedPermissions->contains($permission->id)) class="text-capitalize">
-                                {{ $permission->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <small class="text-muted">Hold Ctrl/Cmd to select multiple permissions.</small>
+                    <x-permission-selector :permissions="$permissions" :selected="$selectedPermissions" />
+                    <small class="text-muted">Select one or more permissions.</small>
                     @error('permissions')
-                        <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                 </div>
 
-                <div class="mt-4 d-flex justify-content-between">
-                    <div>
-                        @if ($role->name === 'super-admin')
-                            <small class="text-muted">Super admin role cannot be deleted.</small>
-                        @else
-                            <form class="d-inline" method="POST" action="{{ route('admin.roles.destroy', $role) }}" onsubmit="return confirm('Delete this role?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-outline-danger btn-sm">Delete role</button>
-                            </form>
-                        @endif
-                    </div>
-                    <div class="d-flex gap-2">
-                        <a href="{{ route('admin.roles.index') }}" class="btn btn-outline-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary">Save changes</button>
-                    </div>
+                <div class="mt-4 d-flex justify-content-end gap-2">
+                    <a href="{{ route('admin.roles.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">Save changes</button>
                 </div>
             </form>
+
+            <div class="mt-3 d-flex justify-content-between align-items-center">
+                @if ($role->name === 'super-admin')
+                    <small class="text-muted">Super admin role cannot be deleted.</small>
+                @else
+                    <form class="d-inline" method="POST" action="{{ route('admin.roles.destroy', $role) }}" onsubmit="return confirm('Delete this role?');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn btn-outline-danger btn-sm">Delete role</button>
+                    </form>
+                @endif
+            </div>
         </div>
     </div>
 </x-app-layout>

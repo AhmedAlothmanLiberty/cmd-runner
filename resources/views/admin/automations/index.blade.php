@@ -30,7 +30,7 @@
                             <th>Schedule</th>
                             <th>Status</th>
                             <th>Last run</th>
-                            <th>Next run</th>
+                            <th class="text-nowrap">Next run</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -78,30 +78,42 @@
                                         @endif
                                     </div>
                                 </td>
-                                <td>
+                                <td class="text-nowrap">
                                     @php $nextRun = $automation->nextRunAt(); @endphp
-                                    <div class="small text-muted">
+                                    <div class="d-flex flex-column align-items-start gap-1">
                                         @if (! $automation->is_active)
-                                            <span class="text-secondary">Inactive</span>
+                                            <span class="badge text-bg-secondary">Inactive</span>
                                         @elseif ($nextRun)
-                                            <div>{{ $nextRun->diffForHumans() }}</div>
-                                            <div class="text-nowrap">{{ $nextRun->format('Y-m-d H:i') }} ({{ $nextRun->getTimezone()->getName() }})</div>
+                                            <span class="badge text-bg-primary">{{ $nextRun->diffForHumans() }}</span>
+                                            <small class="text-muted">{{ $nextRun->format('Y-m-d H:i') }} ({{ $nextRun->getTimezone()->getName() }})</small>
                                         @else
-                                            <span class="text-danger">Unable to calculate</span>
+                                            <span class="badge text-bg-danger">Needs schedule</span>
+                                            <small class="text-muted">Check cron / daily time</small>
                                         @endif
                                     </div>
                                 </td>
                                 <td class="text-end">
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <a href="{{ route('admin.automations.edit', $automation) }}" class="btn btn-outline-secondary">Edit</a>
-                                        <a href="{{ route('admin.automations.logs', $automation) }}" class="btn btn-outline-secondary">Logs</a>
-                                        <form action="{{ route('admin.automations.run', $automation) }}" method="POST" class="automation-run-form">
+                                    <div class="d-flex flex-wrap justify-content-end gap-2">
+                                        <a href="{{ route('admin.automations.edit', $automation) }}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-pencil me-1"></i>Edit
+                                        </a>
+                                        <a href="{{ route('admin.automations.logs', $automation) }}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-list-ul me-1"></i>Logs
+                                        </a>
+                                        @can('run-automation')
+                                            <form action="{{ route('admin.automations.run', $automation) }}" method="POST" class="automation-run-form d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-primary">
+                                                    <i class="bi bi-play-fill me-1"></i>Run now
+                                                </button>
+                                            </form>
+                                        @endcan
+                                        <form action="{{ route('admin.automations.toggle', $automation) }}" method="POST" class="d-inline">
                                             @csrf
-                                            <button type="submit" class="btn btn-outline-primary">Run now</button>
-                                        </form>
-                                        <form action="{{ route('admin.automations.toggle', $automation) }}" method="POST">
-                                            @csrf
-                                            <button type="submit" class="btn btn-outline-warning">{{ $automation->is_active ? 'Disable' : 'Enable' }}</button>
+                                            <button type="submit" class="btn btn-sm {{ $automation->is_active ? 'btn-outline-warning' : 'btn-outline-success' }}">
+                                                <i class="bi {{ $automation->is_active ? 'bi-pause-fill' : 'bi-play-circle' }} me-1"></i>
+                                                {{ $automation->is_active ? 'Disable' : 'Enable' }}
+                                            </button>
                                         </form>
                                     </div>
                                 </td>

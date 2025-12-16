@@ -26,13 +26,21 @@
 @php
     $timezoneDefault = 'America/Los_Angeles';
     $selectedTimezone = old('timezone', $automation->timezone ?? $timezoneDefault);
+    $timezoneOptions = [
+        'America/Los_Angeles',
+        'America/New_York',
+        'America/Chicago',
+        'America/Denver',
+        'Asia/Amman',
+        'UTC',
+    ];
 @endphp
 
 <div class="row g-3">
     <div class="col-md-6">
         <label for="timezone" class="form-label">Timezone</label>
         <select name="timezone" id="timezone" class="form-select @error('timezone') is-invalid @enderror">
-            @foreach (\DateTimeZone::listIdentifiers() as $timezone)
+            @foreach ($timezoneOptions as $timezone)
                 <option value="{{ $timezone }}" @selected($selectedTimezone === $timezone)>{{ $timezone }}</option>
             @endforeach
         </select>

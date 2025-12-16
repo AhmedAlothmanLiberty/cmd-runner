@@ -28,16 +28,10 @@
 
                 <div class="mb-3">
                     <label for="permissions" class="form-label">Permissions</label>
-                    <select id="permissions" name="permissions[]" class="form-select @error('permissions') is-invalid @enderror" multiple>
-                        @foreach ($permissions as $permission)
-                            <option value="{{ $permission->id }}" @selected(collect(old('permissions', []))->contains($permission->id)) class="text-capitalize">
-                                {{ $permission->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <small class="text-muted">Hold Ctrl/Cmd to select multiple permissions.</small>
+                    <x-permission-selector :permissions="$permissions" :selected="old('permissions', [])" />
+                    <small class="text-muted">Select one or more permissions.</small>
                     @error('permissions')
-                        <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                 </div>
 

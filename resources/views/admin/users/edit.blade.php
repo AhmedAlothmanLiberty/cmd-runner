@@ -49,18 +49,14 @@
                 </div>
 
                 <div class="mt-3">
-                    <label for="roles" class="form-label">Roles</label>
-                    <select id="roles" name="roles[]" class="form-select @error('roles') is-invalid @enderror" multiple>
-                        @php
-                            $selectedRoles = collect(old('roles', $user->roles->pluck('id')->toArray()));
-                        @endphp
-                        @foreach ($roles as $id => $roleName)
-                            <option value="{{ $id }}" @selected($selectedRoles->contains($id))>{{ \Illuminate\Support\Str::headline($roleName) }}</option>
-                        @endforeach
-                    </select>
-                    <small class="text-muted">Hold Ctrl/Cmd to select multiple roles.</small>
+                    <label class="form-label">Roles</label>
+                    @php
+                        $selectedRoles = old('roles', $user->roles->pluck('id')->toArray());
+                    @endphp
+                    <x-role-selector :roles="$roles" :selected="$selectedRoles" />
+                    <small class="text-muted">Select one or more roles.</small>
                     @error('roles')
-                        <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                 </div>
 
