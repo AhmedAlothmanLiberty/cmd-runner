@@ -25,6 +25,21 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="bg-light">
+        @php
+            $routeName = \Illuminate\Support\Facades\Route::currentRouteName();
+            $pageText = $routeName
+                ? strtoupper(str_replace(['.', '-', 'index'], ' ', $routeName))
+                : strtoupper(config('app.name', 'Loading'));
+        @endphp
+
+        <x-loader
+            id="page-load-loader"
+            :blocking="true"
+            :duration="800"
+            :text="$pageText"
+            style="display: none; position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 1100;"
+        />
+
         <div id="app">
             @include('layouts.navigation')
 
@@ -50,5 +65,20 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+        <script>
+            // Show a quick inline loader on page load (non-blocking)
+            document.addEventListener('DOMContentLoaded', () => {
+                const loader = document.getElementById('page-load-loader');
+                if (!loader) return;
+
+                const duration = Number(loader.dataset.duration ?? 800) || 800;
+                loader.style.display = 'inline-flex';
+
+                setTimeout(() => {
+                    loader.style.display = 'none';
+                }, duration);
+            });
+        </script>
+        @stack('scripts')
     </body>
 </html>

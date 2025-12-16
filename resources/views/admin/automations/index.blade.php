@@ -95,7 +95,7 @@
                                     <div class="btn-group btn-group-sm" role="group">
                                         <a href="{{ route('admin.automations.edit', $automation) }}" class="btn btn-outline-secondary">Edit</a>
                                         <a href="{{ route('admin.automations.logs', $automation) }}" class="btn btn-outline-secondary">Logs</a>
-                                        <form action="{{ route('admin.automations.run', $automation) }}" method="POST">
+                                        <form action="{{ route('admin.automations.run', $automation) }}" method="POST" class="automation-run-form">
                                             @csrf
                                             <button type="submit" class="btn btn-outline-primary">Run now</button>
                                         </form>
@@ -120,3 +120,11 @@
         </div>
     </div>
 </x-app-layout>
+
+<x-loader
+    data-loader="automation-run-loader"
+    trigger-selector=".automation-run-form"
+    :duration="3000"
+    style="display: none;"
+    :text="'RUNNING...'"
+/>\n
