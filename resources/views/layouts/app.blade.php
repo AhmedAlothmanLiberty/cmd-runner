@@ -51,7 +51,7 @@
                         </nav>
                     @endif
 
-                    <main class="@if(auth()->check() && auth()->user()->hasRole('admin')) col-md-9 ms-sm-auto col-lg-10 px-md-4 @else col-12 px-3 @endif py-4">
+                    <main class="@if(auth()->check() && auth()->user()->hasAnyRole(['admin', 'super-admin'])) col-md-9 ms-sm-auto col-lg-10 px-md-4 @else col-12 px-3 @endif py-4">
                         @isset($header)
                             <div class="d-flex flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
                                 {{ $header }}

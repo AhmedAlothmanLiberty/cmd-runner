@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Admin\PackageUpdateController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AutomationController;
 use App\Http\Controllers\AutomationRunController;
@@ -32,6 +33,13 @@ Route::middleware(['auth', 'role:super-admin'])
     ->group(function () {
         Route::resource('roles', \App\Http\Controllers\Admin\RoleManagementController::class)->except(['show']);
         Route::resource('permissions', \App\Http\Controllers\Admin\PermissionManagementController::class)->only(['index', 'store', 'destroy']);
+
+        Route::prefix('package-updates')
+            ->name('package-updates.')
+            ->group(function () {
+                Route::get('/', [PackageUpdateController::class, 'index'])->name('index');
+                Route::post('/run', [PackageUpdateController::class, 'run'])->name('run');
+            });
     });
 
 Route::middleware(['auth', 'role:admin|automation|super-admin'])
@@ -56,4 +64,4 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';
