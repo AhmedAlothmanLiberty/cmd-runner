@@ -26,6 +26,10 @@
                     </li>
                     @if (auth()->user()->hasRole('super-admin'))
                         <li class="nav-item">
+                            <a class="nav-link @if (request()->routeIs('admin.package-updates.*')) active fw-semibold text-primary @endif"
+                                href="{{ route('admin.package-updates.index') }}">Package Updates</a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link @if (request()->routeIs('admin.roles.*')) active fw-semibold text-primary @endif"
                                 href="{{ route('admin.roles.index') }}">Roles</a>
                         </li>

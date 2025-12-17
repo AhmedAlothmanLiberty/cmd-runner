@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "30286956dd3b1b08ce15bd55bd1264f2",
+    "content-hash": "ebfef21600e84a72ecd350bceaff1cab",
     "packages": [
         {
             "name": "brick/math",
@@ -2081,16 +2081,16 @@
         },
         {
             "name": "liberty-cmd/reports",
-            "version": "dev-features",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/AhmedAlothmanLiberty/cmd-reports.git",
-                "reference": "9ade38906b3d6065738ce281f6f15da2aee4ee01"
+                "reference": "0cbc1c195eaa24290a869555dafef5504b34788d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AhmedAlothmanLiberty/cmd-reports/zipball/9ade38906b3d6065738ce281f6f15da2aee4ee01",
-                "reference": "9ade38906b3d6065738ce281f6f15da2aee4ee01",
+                "url": "https://api.github.com/repos/AhmedAlothmanLiberty/cmd-reports/zipball/0cbc1c195eaa24290a869555dafef5504b34788d",
+                "reference": "0cbc1c195eaa24290a869555dafef5504b34788d",
                 "shasum": ""
             },
             "require": {
@@ -2098,6 +2098,7 @@
                 "guzzlehttp/guzzle": "^7.10",
                 "php": "^8.1"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -2115,9 +2116,9 @@
             "description": "DebtPlete CMD and SQL reports module",
             "support": {
                 "issues": "https://github.com/AhmedAlothmanLiberty/cmd-reports/issues",
-                "source": "https://github.com/AhmedAlothmanLiberty/cmd-reports/tree/features"
+                "source": "https://github.com/AhmedAlothmanLiberty/cmd-reports/tree/main"
             },
-            "time": "2025-12-11T19:43:32+00:00"
+            "time": "2025-11-26T20:08:35+00:00"
         },
         {
             "name": "monolog/monolog",
@@ -8614,7 +8615,7 @@
         }
     ],
     "aliases": [],
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "stability-flags": {
         "liberty-cmd/reports": 20
     },

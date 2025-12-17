@@ -25,6 +25,14 @@
             'active' => request()->routeIs('admin.permissions.*'),
             'icon' => 'key-fill',
         ];
+
+        $links[] = [
+            'label' => 'Package Updates',
+            'description' => 'Run composer updates',
+            'href' => route('admin.package-updates.index'),
+            'active' => request()->routeIs('admin.package-updates.*'),
+            'icon' => 'arrow-repeat',
+        ];
     }
 
     if (auth()->user()->hasAnyRole(['admin', 'automation', 'super-admin'])) {
