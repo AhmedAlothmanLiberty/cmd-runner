@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a6444a97e4a54cc8709fc01f92bb1f09",
+    "content-hash": "87f614ff5cd19c628efd053f584c01f6",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -2232,16 +2232,16 @@
         },
         {
             "name": "liberty-cmd/reports",
-            "version": "dev-main",
+            "version": "dev-dev",
             "source": {
                 "type": "git",
                 "url": "https://github.com/AhmedAlothmanLiberty/cmd-reports.git",
-                "reference": "0cbc1c195eaa24290a869555dafef5504b34788d"
+                "reference": "29d78603b38c33f53fc80a1ca989c45a1ba920d2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AhmedAlothmanLiberty/cmd-reports/zipball/0cbc1c195eaa24290a869555dafef5504b34788d",
-                "reference": "0cbc1c195eaa24290a869555dafef5504b34788d",
+                "url": "https://api.github.com/repos/AhmedAlothmanLiberty/cmd-reports/zipball/29d78603b38c33f53fc80a1ca989c45a1ba920d2",
+                "reference": "29d78603b38c33f53fc80a1ca989c45a1ba920d2",
                 "shasum": ""
             },
             "require": {
@@ -2249,7 +2249,6 @@
                 "guzzlehttp/guzzle": "^7.10",
                 "php": "^8.1"
             },
-            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -2267,9 +2266,9 @@
             "description": "DebtPlete CMD and SQL reports module",
             "support": {
                 "issues": "https://github.com/AhmedAlothmanLiberty/cmd-reports/issues",
-                "source": "https://github.com/AhmedAlothmanLiberty/cmd-reports/tree/main"
+                "source": "https://github.com/AhmedAlothmanLiberty/cmd-reports/tree/dev"
             },
-            "time": "2025-11-26T20:08:35+00:00"
+            "time": "2025-12-22T17:49:24+00:00"
         },
         {
             "name": "monolog/monolog",

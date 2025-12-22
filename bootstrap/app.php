@@ -7,16 +7,31 @@ use Illuminate\Foundation\Configuration\Middleware;
 return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([
         app_path('Console/Commands'),
+
+        // app commands
         \App\Console\Commands\TestAutomationCommand::class,
         \App\Console\Commands\RunAutomation::class,
-        \Cmd\Reports\Console\Commands\SyncBalances::class,
-        \Cmd\Reports\Console\Commands\SyncBalancesHistory::class,
-        \Cmd\Reports\Console\Commands\SeedCmdReportPermissions::class,
-        \Cmd\Reports\Console\Commands\TestDatabaseConnections::class,
+
+        // package commands (register only if the class exists)
+        ...array_values(array_filter([
+            \Cmd\Reports\Console\Commands\SyncBalances::class,
+            \Cmd\Reports\Console\Commands\SyncBalancesHistory::class,
+            \Cmd\Reports\Console\Commands\SeedCmdReportPermissions::class,
+            \Cmd\Reports\Console\Commands\TestDatabaseConnections::class,
+            \Cmd\Reports\Console\Commands\SyncFirstPaymentClearedDate::class,
+            \Cmd\Reports\Console\Commands\SyncDebtAccounts::class,
+            \Cmd\Reports\Console\Commands\SyncEnrollmentPlans::class,
+            \Cmd\Reports\Console\Commands\SyncFirstPaymentDate::class,
+            \Cmd\Reports\Console\Commands\SyncSubmittedDate::class,
+            \Cmd\Reports\Console\Commands\SyncTimeInProgram::class,
+            \Cmd\Reports\Console\Commands\SyncSubmittedDate::class,
+
+
+        ], fn(string $c) => class_exists($c))),
     ])
     ->withRouting(
-        web: __DIR__.'/../routes/web.php',
-        commands: __DIR__.'/../routes/console.php',
+        web: __DIR__ . '/../routes/web.php',
+        commands: __DIR__ . '/../routes/console.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
