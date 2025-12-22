@@ -12,16 +12,17 @@ use Throwable;
 
 class AutomationRunController extends Controller
 {
-public function run(Automation $automation): RedirectResponse
-{
-    $executor = app(\App\Services\AutomationExecutor::class);
+    public function run(Automation $automation): RedirectResponse
+    {
+        $executor = app(\App\Services\AutomationExecutor::class);
 
-    $executor->run(
-        automation: $automation,
-        triggeredBy: 'manual:' . (auth()->user()->email ?? 'system')
-    );
+        $executor->run(
+            automation: $automation,
+            triggeredBy: 'manual:' . (auth()->user()->email ?? 'system'),
+            runNow: true,
+        );
 
-    return back()->with('status', 'Automation executed.');
-}
+        return back()->with('status', 'Automation executed.');
+    }
 
 }

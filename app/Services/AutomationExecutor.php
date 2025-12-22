@@ -10,10 +10,10 @@ use Throwable;
 
 class AutomationExecutor
 {
-public function run(Automation $automation, string $triggeredBy = 'system'): ?AutomationLog
+public function run(Automation $automation, string $triggeredBy = 'system', bool $runNow = false): ?AutomationLog
 {
     // 1) Check if automation should run
-    if (! $automation->shouldRunNow()) {
+    if (! $automation->shouldRunNow($runNow)) {
         return null; // No log created because nothing happened
     }
 
