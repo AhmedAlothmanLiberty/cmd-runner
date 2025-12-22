@@ -51,7 +51,7 @@ class Automation extends Model
         return $this->hasMany(AutomationLog::class)->latest();
     }
 
-    public function shouldRunNow(): bool
+    public function shouldRunNow(bool $runNow = false): bool
     {
         // 1) If automation is disabled → don't run
         if (! $this->is_active) {
@@ -72,6 +72,11 @@ class Automation extends Model
 
             $timezone = config('app.timezone');
             $now = now($timezone)->startOfMinute();
+        }
+
+        // If run_now was explicitly requested, skip schedule gates (run immediately)
+        if ($runNow === true) {
+            return true;
         }
 
         // 3) Handle DAILY fixed-time logic (e.g., 01:00 LA time)
