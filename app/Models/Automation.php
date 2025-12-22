@@ -87,8 +87,10 @@ class Automation extends Model
         }
 
         // 4) Evaluate CRON expression
+        $cronExpression = $this->cron_expression ?: '* * * * *';
+
         try {
-            $cron = new CronExpression($this->cron_expression);
+            $cron = new CronExpression($cronExpression);
         } catch (Throwable $exception) {
             Log::warning('Invalid cron expression for automation', [
                 'automation_id'  => $this->id,
@@ -141,8 +143,10 @@ class Automation extends Model
             $now = now($timezone)->startOfMinute();
         }
 
+        $cronExpression = $this->cron_expression ?: '* * * * *';
+
         try {
-            $cron = new CronExpression($this->cron_expression);
+            $cron = new CronExpression($cronExpression);
         } catch (Throwable $exception) {
             Log::warning('Invalid cron expression for automation (next run calc)', [
                 'automation_id' => $this->id,
