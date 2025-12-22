@@ -87,6 +87,44 @@
 
     <div class="card shadow-sm border-0">
         <div class="card-body p-0">
+            <div class="border-bottom bg-light px-3 py-3">
+                <form method="GET" action="{{ route('admin.automations.index') }}" class="row g-2 align-items-end">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label mb-1">Search</label>
+                        <input
+                            type="text"
+                            name="search"
+                            class="form-control"
+                            value="{{ $filters['search'] ?? '' }}"
+                            placeholder="Name, slug, or command"
+                        />
+                    </div>
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label mb-1">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="">All</option>
+                            <option value="active" @selected(($filters['status'] ?? '') === 'active')>Active</option>
+                            <option value="inactive" @selected(($filters['status'] ?? '') === 'inactive')>Inactive</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label mb-1">Run via</label>
+                        <select name="run_via" class="form-select">
+                            <option value="">All</option>
+                            <option value="artisan" @selected(($filters['run_via'] ?? '') === 'artisan')>Artisan</option>
+                            <option value="later" @selected(($filters['run_via'] ?? '') === 'later')>Queue (later)</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-auto d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-funnel me-1"></i> Filter
+                        </button>
+                        <a href="{{ route('admin.automations.index') }}" class="btn btn-outline-secondary">
+                            Reset
+                        </a>
+                    </div>
+                </form>
+            </div>
             @if (session('status'))
                 <div class="alert alert-info m-3 mb-0">
                     {{ session('status') }}

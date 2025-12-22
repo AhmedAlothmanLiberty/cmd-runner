@@ -12,11 +12,42 @@ use Illuminate\View\View;
 
 class AutomationController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $automations = Automation::orderBy('name')->paginate(15);
+        $query = Automation::query();
 
-        return view('admin.automations.index', compact('automations'));
+        $search = trim((string) $request->input('search', ''));
+        $status = $request->input('status');
+        $runVia = $request->input('run_via');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search): void {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('slug', 'like', "%{$search}%")
+                    ->orWhere('command', 'like', "%{$search}%");
+            });
+        }
+
+        if (in_array($status, ['active', 'inactive'], true)) {
+            $query->where('is_active', $status === 'active');
+        }
+
+        if (in_array($runVia, ['artisan', 'later'], true)) {
+            $query->where('run_via', $runVia);
+        }
+
+        $automations = $query
+            ->orderBy('name')
+            ->paginate(15)
+            ->appends($request->query());
+
+        $filters = [
+            'search' => $search,
+            'status' => $status,
+            'run_via' => $runVia,
+        ];
+
+        return view('admin.automations.index', compact('automations', 'filters'));
     }
 
     public function create(): View

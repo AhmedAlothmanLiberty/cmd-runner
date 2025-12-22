@@ -6,14 +6,15 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AutomationController;
 use App\Http\Controllers\AutomationRunController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\DashboardController;
 
 Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', DashboardController::class)
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
 
 Route::middleware(['auth', 'role:admin|super-admin'])
     ->prefix('admin')
