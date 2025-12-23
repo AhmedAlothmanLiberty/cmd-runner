@@ -12,7 +12,7 @@
         </div>
     </x-slot>
 
-    <div class="card shadow-sm border-0">
+    <div class="card shadow-sm border-0 mx-auto" style="max-width: 960px;">
         <div class="card-body">
             <form action="{{ route('admin.automations.store') }}" method="POST">
                 @include('admin.automations._form')

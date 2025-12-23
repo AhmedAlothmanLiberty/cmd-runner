@@ -18,7 +18,6 @@ class AutomationController extends Controller
 
         $search = trim((string) $request->input('search', ''));
         $status = $request->input('status');
-        $runVia = $request->input('run_via');
 
         if ($search !== '') {
             $query->where(function ($q) use ($search): void {
@@ -32,19 +31,14 @@ class AutomationController extends Controller
             $query->where('is_active', $status === 'active');
         }
 
-        if (in_array($runVia, ['artisan', 'later'], true)) {
-            $query->where('run_via', $runVia);
-        }
-
         $automations = $query
-            ->orderBy('name')
-            ->paginate(15)
+            ->orderByDesc('updated_at')
+            ->paginate(10)
             ->appends($request->query());
 
         $filters = [
             'search' => $search,
             'status' => $status,
-            'run_via' => $runVia,
         ];
 
         return view('admin.automations.index', compact('automations', 'filters'));
@@ -57,7 +51,14 @@ class AutomationController extends Controller
 
     public function store(StoreAutomationRequest $request): RedirectResponse
     {
-        Automation::create($request->validated());
+        $userEmail = auth()->user()->email ?? 'system';
+
+        $data = $this->normalizeSchedulePayload($request->validated());
+
+        Automation::create(array_merge($data, [
+            'created_by' => $userEmail,
+            'updated_by' => $userEmail,
+        ]));
 
         return redirect()->route('admin.automations.index')->with('status', 'Automation created.');
     }
@@ -69,7 +70,13 @@ class AutomationController extends Controller
 
     public function update(UpdateAutomationRequest $request, Automation $automation): RedirectResponse
     {
-        $automation->update($request->validated());
+        $userEmail = auth()->user()->email ?? 'system';
+
+        $data = $this->normalizeSchedulePayload($request->validated());
+
+        $automation->update(array_merge($data, [
+            'updated_by' => $userEmail,
+        ]));
 
         return redirect()->route('admin.automations.index')->with('status', 'Automation updated.');
     }
@@ -100,5 +107,87 @@ class AutomationController extends Controller
         $log->load('automation');
 
         return view('admin.automations.log_show', compact('log'));
+    }
+
+    private function normalizeSchedulePayload(array $data): array
+    {
+        $data['schedule_mode'] = $data['schedule_mode'] ?? 'daily';
+        $dayTimes = $data['day_times'] ?? [];
+        $dailyTimes = $data['daily_times'] ?? [];
+
+        // Normalize day_times and derive weekly_days
+        $normalizedDayTimes = [];
+        $weeklyDays = [];
+
+        if ($data['schedule_mode'] === 'custom') {
+            foreach ($dayTimes as $day => $times) {
+                if (! is_array($times)) {
+                    continue;
+                }
+
+                $cleanTimes = array_values(array_filter($times, static fn ($v) => $v !== null && $v !== ''));
+                if (! empty($cleanTimes)) {
+                    $normalizedDayTimes[$day] = $cleanTimes;
+                    $weeklyDays[] = $day;
+                }
+            }
+
+            $data['day_times'] = $normalizedDayTimes;
+            $data['weekly_days'] = array_values(array_unique($weeklyDays));
+            $data['daily_time'] = null;
+            $data['run_times'] = [];
+        } else {
+            // daily mode
+            $data['day_times'] = [];
+            $data['weekly_days'] = [];
+            $cleanDaily = array_values(array_filter($dailyTimes, static fn ($v) => $v !== null && $v !== ''));
+            $data['run_times'] = $cleanDaily;
+            $data['daily_time'] = $cleanDaily[0] ?? ($data['daily_time'] ?? '00:00');
+        }
+
+        // Legacy fields kept for compatibility but not used in scheduling
+        $data['schedule_frequencies'] = [];
+        $data['monthly_days'] = [];
+
+        unset(
+            $data['monthly_days_text'],
+            $data['yearly_dates_text']
+        );
+
+        unset($data['daily_times']);
+
+        return $data;
+    }
+
+    private function parseCommaSeparatedInts(string $value, int $min, int $max): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $parts = array_map('trim', explode(',', $value));
+        $ints = [];
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+            $num = (int) $part;
+            if ($num >= $min && $num <= $max) {
+                $ints[] = $num;
+            }
+        }
+
+        return array_values(array_unique($ints));
+    }
+
+    private function parseCommaSeparatedStrings(string $value): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $parts = array_map('trim', explode(',', $value));
+
+        return array_values(array_unique(array_filter($parts, static fn ($v) => $v !== '')));
     }
 }

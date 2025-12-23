@@ -12,7 +12,7 @@
         </div>
     </x-slot>
 
-    <div class="card shadow-sm border-0">
+    <div class="card shadow-sm border-0 mx-auto" style="max-width: 960px;">
         <div class="card-body">
             <form id="automation-update-form" action="{{ route('admin.automations.update', $automation) }}" method="POST">
                 @csrf

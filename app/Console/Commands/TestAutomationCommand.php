@@ -22,7 +22,7 @@ class TestAutomationCommand extends Command
 
     /**
      * Execute the console command.
-     */
+     */                                                                                                             
     public function handle(): int
     {
         $this->info('Automation test command executed successfully at '.now()->toDateTimeString());

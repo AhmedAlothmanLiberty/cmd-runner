@@ -29,12 +29,24 @@ class Automation extends Model
         'last_run_status',
         'last_runtime_ms',
         'notify_on_fail',
+        'created_by',
+        'updated_by',
+        'schedule_frequencies',
+        'schedule_mode',
+        'day_times',
+        'run_times',
+        'weekly_days',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'notify_on_fail' => 'boolean',
         'last_run_at' => 'datetime',
+        'schedule_frequencies' => 'array',
+        'schedule_mode' => 'string',
+        'day_times' => 'array',
+        'run_times' => 'array',
+        'weekly_days' => 'array',
     ];
 
     protected static function booted(): void
@@ -79,29 +91,50 @@ class Automation extends Model
             return true;
         }
 
-        // 3) Handle DAILY fixed-time logic (takes precedence; cron ignored when set)
-        if ($this->daily_time) {
-            if ($now->format('H:i') !== $this->daily_time) {
+        $mode = $this->schedule_mode ?? 'daily';
+
+        if ($mode === 'custom') {
+            $dayKey = strtolower($now->format('D')); // mon, tue, ...
+            $timesForDay = $this->day_times[$dayKey] ?? [];
+            $timesForDay = $this->normalizeTimesArray($timesForDay);
+
+            if (empty($timesForDay)) {
+                return false;
+            }
+
+            if (! in_array($now->format('H:i'), $timesForDay, true)) {
                 return false;
             }
         } else {
-            // 4) Evaluate CRON expression only when daily_time is not set
-            $cronExpression = $this->cron_expression ?: '* * * * *';
+            // daily mode
+            $dailyTimes = $this->normalizeRunTimes();
+            if (! empty($dailyTimes)) {
+                if (! in_array($now->format('H:i'), $dailyTimes, true)) {
+                    return false;
+                }
+            } elseif ($this->daily_time) {
+                if ($now->format('H:i') !== $this->daily_time) {
+                    return false;
+                }
+            } else {
+                // Cron fallback
+                $cronExpression = $this->cron_expression ?: '* * * * *';
 
-            try {
-                $cron = new CronExpression($cronExpression);
-            } catch (Throwable $exception) {
-                Log::warning('Invalid cron expression for automation', [
-                    'automation_id'  => $this->id,
-                    'cron_expression' => $this->cron_expression,
-                    'error'          => $exception->getMessage(),
-                ]);
+                try {
+                    $cron = new CronExpression($cronExpression);
+                } catch (Throwable $exception) {
+                    Log::warning('Invalid cron expression for automation', [
+                        'automation_id'  => $this->id,
+                        'cron_expression' => $this->cron_expression,
+                        'error'          => $exception->getMessage(),
+                    ]);
 
-                return false;
-            }
+                    return false;
+                }
 
-            if (! $cron->isDue($now)) {
-                return false;
+                if (! $cron->isDue($now)) {
+                    return false;
+                }
             }
         }
 
@@ -143,7 +176,41 @@ class Automation extends Model
             $now = now($timezone)->startOfMinute();
         }
 
-        // If daily_time is set, it is the schedule (ignore cron)
+        $mode = $this->schedule_mode ?? 'daily';
+
+        if ($mode === 'custom') {
+            $dayTimes = $this->normalizedDayTimes();
+
+            for ($i = 0; $i <= 14; $i++) {
+                $candidateDay = $now->copy()->addDays($i);
+                $dayKey = strtolower($candidateDay->format('D'));
+                $times = $dayTimes[$dayKey] ?? [];
+
+                foreach ($times as $time) {
+                    $candidate = $candidateDay->copy()->setTimeFromTimeString($time);
+                    if ($candidate->greaterThanOrEqualTo($now)) {
+                        return $candidate;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        // daily mode
+        $dailyTimes = $this->normalizeRunTimes();
+        if (! empty($dailyTimes)) {
+            for ($i = 0; $i <= 1; $i++) {
+                $candidateDay = $now->copy()->addDays($i);
+                foreach ($dailyTimes as $time) {
+                    $candidate = $candidateDay->copy()->setTimeFromTimeString($time);
+                    if ($candidate->greaterThanOrEqualTo($now)) {
+                        return $candidate;
+                    }
+                }
+            }
+        }
+
         if ($this->daily_time) {
             $candidate = $now->copy()->setTimeFromTimeString($this->daily_time);
 
@@ -154,6 +221,7 @@ class Automation extends Model
             return $candidate;
         }
 
+        // Cron fallback
         $cronExpression = $this->cron_expression ?: '* * * * *';
 
         try {
@@ -171,5 +239,51 @@ class Automation extends Model
         $next = $cron->getNextRunDate($now, 0, true, $timezone);
 
         return Carbon::instance($next)->setTimezone($timezone);
+    }
+
+    private function normalizeRunTimes(): array
+    {
+        $times = $this->run_times ?? [];
+        $times = array_filter($times ?? [], static function ($value): bool {
+            return is_string($value) && trim($value) !== '';
+        });
+
+        $times = array_values($times);
+        sort($times);
+
+        return $times;
+    }
+
+    private function normalizeTimesArray(array $times): array
+    {
+        $times = array_filter($times ?? [], static function ($value): bool {
+            return is_string($value) && trim($value) !== '';
+        });
+
+        $times = array_values($times);
+        sort($times);
+
+        return $times;
+    }
+
+    private function normalizedDayTimes(): array
+    {
+        $times = $this->day_times ?? [];
+        $normalized = [];
+
+        foreach ($times as $day => $list) {
+            if (! is_array($list)) {
+                continue;
+            }
+
+            $clean = array_values(array_filter($list, static fn ($v) => is_string($v) && trim($v) !== ''));
+            sort($clean);
+
+            if (! empty($clean)) {
+                $normalized[$day] = $clean;
+            }
+        }
+
+        return $normalized;
     }
 }

@@ -34,27 +34,89 @@
         'Asia/Amman',
         'UTC',
     ];
+    $daysOfWeek = [
+        ['key' => 'mon', 'label' => 'Monday'],
+        ['key' => 'tue', 'label' => 'Tuesday'],
+        ['key' => 'wed', 'label' => 'Wednesday'],
+        ['key' => 'thu', 'label' => 'Thursday'],
+        ['key' => 'fri', 'label' => 'Friday'],
+        ['key' => 'sat', 'label' => 'Saturday'],
+        ['key' => 'sun', 'label' => 'Sunday'],
+    ];
+    $dayTimes = old('day_times', []);
+    $scheduleMode = old('schedule_mode', $automation->schedule_mode ?? 'daily'); // daily | custom
+    $dailyTimes = old('daily_times', $automation->run_times ?? []);
+    $dailyTimes = array_values($dailyTimes ?: []);
+    if (count($dailyTimes) === 0) { $dailyTimes[] = null; }
 @endphp
 
-<div class="row g-3">
-    <div class="col-md-6">
-        <label for="timezone" class="form-label">Timezone</label>
-        <select name="timezone" id="timezone" class="form-select @error('timezone') is-invalid @enderror">
-            @foreach ($timezoneOptions as $timezone)
-                <option value="{{ $timezone }}" @selected($selectedTimezone === $timezone)>{{ $timezone }}</option>
+<div class="card border-0 shadow-sm mt-3">
+    <div class="card-body">
+        <h6 class="text-uppercase text-muted small fw-semibold mb-3">Schedule</h6>
+
+        <div class="d-flex flex-wrap gap-3 mb-3">
+            <label class="form-check m-0">
+                <input class="form-check-input schedule-mode-radio" type="radio" name="schedule_mode" value="daily" @checked($scheduleMode === 'daily')>
+                <span class="form-check-label">Daily</span>
+            </label>
+            <label class="form-check m-0">
+                <input class="form-check-input schedule-mode-radio" type="radio" name="schedule_mode" value="custom" @checked($scheduleMode === 'custom')>
+                <span class="form-check-label">Custom days</span>
+            </label>
+        </div>
+
+        <div id="daily-time-group" class="mb-3 @if($scheduleMode !== 'daily') d-none @endif">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <label class="form-label mb-0">Daily times</label>
+                <button class="btn btn-sm btn-outline-secondary" type="button" id="add-daily-time">+ Add time</button>
+            </div>
+            <div id="daily-times-container" class="d-flex flex-column gap-2">
+                @foreach ($dailyTimes as $idx => $time)
+                    <div class="d-flex align-items-center gap-2 daily-time-row">
+                        <input type="time" name="daily_times[]" class="form-control" value="{{ $time }}">
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-daily-time">&times;</button>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        <div id="custom-days-block" class="@if($scheduleMode !== 'custom') d-none @endif">
+            @foreach ($daysOfWeek as $day)
+                @php
+                    $times = $dayTimes[$day['key']] ?? [];
+                    $times = array_values($times ?: []);
+                    if (count($times) === 0) { $times[] = null; }
+                @endphp
+                <div class="border rounded p-3 mb-2">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="fw-semibold">{{ $day['label'] }}</span>
+                        <button class="btn btn-sm btn-outline-secondary add-day-time" type="button" data-day="{{ $day['key'] }}">+ Add time</button>
+                    </div>
+                    <div class="d-flex flex-column gap-2 day-times-container" data-day-container="{{ $day['key'] }}">
+                        @foreach ($times as $idx => $time)
+                            <div class="d-flex align-items-center gap-2 day-time-row">
+                                <input type="time" name="day_times[{{ $day['key'] }}][]" class="form-control form-control-sm" style="width: 140px;" value="{{ $time }}">
+                                <button type="button" class="btn btn-sm btn-outline-danger remove-day-time">&times;</button>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
             @endforeach
-        </select>
-        @error('timezone')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
-    <div class="col-md-6">
-        <label for="daily_time" class="form-label">Daily Time (HH:MM)</label>
-        <input type="time" name="daily_time" id="daily_time" class="form-control @error('daily_time') is-invalid @enderror" value="{{ old('daily_time', $automation->daily_time ?? '') }}" placeholder="14:30">
-        <div class="form-text">Optional: enforce a specific daily time (24h format) in the selected timezone.</div>
-        @error('daily_time')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+
+        <div class="mt-3">
+            <label class="form-label">Timezone</label>
+            <select name="timezone" class="form-select @error('timezone') is-invalid @enderror">
+                @foreach ($timezoneOptions as $timezone)
+                    <option value="{{ $timezone }}" @selected($selectedTimezone === $timezone)>{{ $timezone }}</option>
+                @endforeach
+            </select>
+            @error('timezone')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
     </div>
 </div>
 
-<div class="row g-3">
+<div class="row g-3 mt-3">
     <div class="col-md-4">
         <label for="timeout_seconds" class="form-label">Timeout (seconds)</label>
         <input type="number" name="timeout_seconds" id="timeout_seconds" class="form-control @error('timeout_seconds') is-invalid @enderror" value="{{ old('timeout_seconds', $automation->timeout_seconds ?? '') }}" min="1">
@@ -80,3 +142,82 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const addButtons = document.querySelectorAll('.add-day-time');
+    const modeRadios = document.querySelectorAll('.schedule-mode-radio');
+    const customBlock = document.getElementById('custom-days-block');
+    const dailyGroup = document.getElementById('daily-time-group');
+    const dailyTimesContainer = document.getElementById('daily-times-container');
+    const addDailyBtn = document.getElementById('add-daily-time');
+
+    const addDailyRow = (value = '') => {
+        if (!dailyTimesContainer) return;
+        const row = document.createElement('div');
+        row.className = 'd-flex align-items-center gap-2 daily-time-row';
+        row.innerHTML = `
+            <input type="time" name="daily_times[]" class="form-control form-control-sm" style="width: 140px;" value="${value}">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-daily-time">&times;</button>
+        `;
+        dailyTimesContainer.appendChild(row);
+        const btn = row.querySelector('.remove-daily-time');
+        if (btn) {
+            btn.addEventListener('click', () => {
+                if (dailyTimesContainer.children.length > 1) {
+                    row.remove();
+                }
+            });
+        }
+    };
+
+    addDailyBtn?.addEventListener('click', () => addDailyRow());
+    document.querySelectorAll('.daily-time-row .remove-daily-time').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const row = btn.closest('.daily-time-row');
+            if (row && dailyTimesContainer && dailyTimesContainer.children.length > 1) {
+                row.remove();
+            }
+        });
+    });
+
+    const attachRemove = (row) => {
+        const removeBtn = row.querySelector('.remove-day-time');
+        if (!removeBtn) return;
+        removeBtn.addEventListener('click', () => {
+            const container = row.closest('.day-times-container');
+            if (container && container.children.length > 1) {
+                row.remove();
+            }
+        });
+    };
+
+    addButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const day = btn.getAttribute('data-day');
+            const container = document.querySelector(`[data-day-container="${day}"]`);
+            if (!container) return;
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center gap-2 day-time-row';
+            row.innerHTML = `
+                <input type="time" name="day_times[${day}][]" class="form-control form-control-sm" style="width: 140px;">
+                <button type="button" class="btn btn-sm btn-outline-danger remove-day-time">&times;</button>
+            `;
+            container.appendChild(row);
+            attachRemove(row);
+        });
+    });
+
+    document.querySelectorAll('.day-time-row').forEach(attachRemove);
+
+    const toggleMode = () => {
+        const selected = Array.from(modeRadios).find(r => r.checked)?.value;
+        if (customBlock) customBlock.classList.toggle('d-none', selected !== 'custom');
+        if (dailyGroup) dailyGroup.classList.toggle('d-none', selected !== 'daily');
+    };
+    modeRadios.forEach(r => r.addEventListener('change', toggleMode));
+    toggleMode();
+});
+</script>
+@endpush
