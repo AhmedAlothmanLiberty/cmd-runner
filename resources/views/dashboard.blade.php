@@ -112,39 +112,63 @@
                     @endforelse
                 </div>
             </div>
+            <div class="card shadow-sm border-0 mt-3">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">Latest Automations</h5>
+                        <small class="text-muted">Most recent (excluding test command).</small>
+                    </div>
+                </div>
+                <div class="list-group list-group-flush">
+                    @forelse ($latestAutomations as $automation)
+                        <div class="list-group-item d-flex justify-content-between align-items-start">
+                            <div>
+                                <p class="mb-0 fw-semibold">{{ $automation->name }}</p>
+                                <small class="text-muted">{{ $automation->command }}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge {{ $automation->is_active ? 'text-bg-success' : 'text-bg-secondary' }}">
+                                    {{ $automation->is_active ? 'Active' : 'Inactive' }}
+                                </span>
+                                <div class="small text-muted">{{ $automation->created_at?->diffForHumans() ?? '—' }}</div>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="list-group-item text-center text-muted py-4">
+                            No automations yet.
+                        </div>
+                    @endforelse
+                </div>
+            </div>
         </div>
 
         <div class="col-12 col-xl-4">
             <div class="card shadow-sm border-0 mb-3">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-0">Operations Snapshot</h5>
-                        <small class="text-muted">Quick health summary.</small>
+                        <h5 class="mb-0">Last Package Update</h5>
+                        <small class="text-muted">Latest composer run.</small>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div>
-                            <p class="mb-0 fw-semibold">Automations</p>
-                            <small class="text-muted">Active vs total</small>
+                    @if ($lastPackageUpdate)
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <p class="mb-0 fw-semibold">{{ $lastPackageUpdate->package }}</p>
+                                <small class="text-muted">Status: {{ $lastPackageUpdate->status }}</small>
+                            </div>
+                            <span class="badge {{ $lastPackageUpdate->status === 'success' ? 'text-bg-success' : 'text-bg-danger' }}">
+                                {{ $lastPackageUpdate->status }}
+                            </span>
                         </div>
-                        <span class="badge text-bg-success">{{ $highlights[1]['value'] ?? '0' }} /
-                            {{ $highlights[0]['value'] ?? '0' }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div>
-                            <p class="mb-0 fw-semibold">Last automation run</p>
-                            <small class="text-muted">{{ $highlights[3]['value'] ?? '—' }}</small>
+                        <div class="small text-muted">
+                            Constraint: {{ $lastPackageUpdate->branch }}<br>
+                            When: {{ $lastPackageUpdate->created_at?->diffForHumans() ?? '—' }}<br>
+                            By: {{ $lastPackageUpdate->triggered_by ?? '—' }}
                         </div>
-                        <i class="bi bi-cpu text-primary"></i>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <p class="mb-0 fw-semibold">Package updates</p>
-                            <small class="text-muted">{{ $highlights[2]['value'] ?? '—' }}</small>
-                        </div>
-                        <i class="bi bi-arrow-repeat text-primary"></i>
-                    </div>
+                    @else
+                        <p class="text-muted mb-0">No package updates logged yet.</p>
+                    @endif
                 </div>
             </div>
 

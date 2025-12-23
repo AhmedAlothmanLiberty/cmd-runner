@@ -79,30 +79,30 @@ class Automation extends Model
             return true;
         }
 
-        // 3) Handle DAILY fixed-time logic (e.g., 01:00 LA time)
+        // 3) Handle DAILY fixed-time logic (takes precedence; cron ignored when set)
         if ($this->daily_time) {
             if ($now->format('H:i') !== $this->daily_time) {
                 return false;
             }
-        }
+        } else {
+            // 4) Evaluate CRON expression only when daily_time is not set
+            $cronExpression = $this->cron_expression ?: '* * * * *';
 
-        // 4) Evaluate CRON expression
-        $cronExpression = $this->cron_expression ?: '* * * * *';
+            try {
+                $cron = new CronExpression($cronExpression);
+            } catch (Throwable $exception) {
+                Log::warning('Invalid cron expression for automation', [
+                    'automation_id'  => $this->id,
+                    'cron_expression' => $this->cron_expression,
+                    'error'          => $exception->getMessage(),
+                ]);
 
-        try {
-            $cron = new CronExpression($cronExpression);
-        } catch (Throwable $exception) {
-            Log::warning('Invalid cron expression for automation', [
-                'automation_id'  => $this->id,
-                'cron_expression' => $this->cron_expression,
-                'error'          => $exception->getMessage(),
-            ]);
+                return false;
+            }
 
-            return false;
-        }
-
-        if (! $cron->isDue($now)) {
-            return false;
+            if (! $cron->isDue($now)) {
+                return false;
+            }
         }
 
         // 5) Prevent double-run within the same minute
@@ -143,6 +143,17 @@ class Automation extends Model
             $now = now($timezone)->startOfMinute();
         }
 
+        // If daily_time is set, it is the schedule (ignore cron)
+        if ($this->daily_time) {
+            $candidate = $now->copy()->setTimeFromTimeString($this->daily_time);
+
+            if ($candidate->lt($now)) {
+                $candidate->addDay();
+            }
+
+            return $candidate;
+        }
+
         $cronExpression = $this->cron_expression ?: '* * * * *';
 
         try {
@@ -157,26 +168,8 @@ class Automation extends Model
             return null;
         }
 
-        if (! $this->daily_time) {
-            $next = $cron->getNextRunDate($now, 0, true, $timezone);
+        $next = $cron->getNextRunDate($now, 0, true, $timezone);
 
-            return Carbon::instance($next)->setTimezone($timezone);
-        }
-
-        $candidate = $now->copy()->setTimeFromTimeString($this->daily_time);
-
-        if ($candidate->lt($now)) {
-            $candidate->addDay();
-        }
-
-        for ($i = 0; $i <= 366; $i++) {
-            if ($cron->isDue($candidate)) {
-                return $candidate->copy();
-            }
-
-            $candidate->addDay();
-        }
-
-        return null;
+        return Carbon::instance($next)->setTimezone($timezone);
     }
 }

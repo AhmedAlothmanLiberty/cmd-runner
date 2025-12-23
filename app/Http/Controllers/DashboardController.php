@@ -20,6 +20,12 @@ class DashboardController extends Controller
 
         $lastPackageUpdate = PackageUpdateLog::latest()->first();
 
+        $latestAutomations = Automation::query()
+            ->where('command', '!=', 'app:test-automation-command')
+            ->latest()
+            ->limit(6)
+            ->get();
+
         $highlights = [
             [
                 'label' => 'Automations',
@@ -70,6 +76,8 @@ class DashboardController extends Controller
         return view('dashboard', [
             'highlights' => $highlights,
             'activity' => $activity,
+            'latestAutomations' => $latestAutomations,
+            'lastPackageUpdate' => $lastPackageUpdate,
         ]);
     }
 }
