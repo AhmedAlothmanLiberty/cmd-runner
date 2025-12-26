@@ -9,11 +9,7 @@ class TaskPolicy
 {
     public function view(User $user, Task $task): bool
     {
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
-        return (int) $task->assigned_to === (int) $user->id;
+        return true;
     }
 
     public function update(User $user, Task $task): bool

@@ -29,13 +29,21 @@ Route::middleware(['auth', 'role:admin|super-admin'])
         Route::delete('/users/{user}', [UserManagementController::class, 'destroy'])->name('users.destroy');
     });
 
+Route::middleware(['auth'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('tasks', [TaskController::class, 'index'])->name('tasks.index');
+        Route::get('tasks/{task}', [TaskController::class, 'show'])->name('tasks.show');
+        Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status');
+        Route::post('tasks/{task}/comments', [TaskController::class, 'addComment'])->name('tasks.comments.store');
+    });
+
 Route::middleware(['auth', 'permission:manage-tasks'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
-        Route::post('tasks/{task}/comments', [TaskController::class, 'addComment'])->name('tasks.comments.store');
-        Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status');
-        Route::resource('tasks', TaskController::class);
+        Route::resource('tasks', TaskController::class)->only(['create', 'store', 'edit', 'update', 'destroy']);
     });
 
 Route::middleware(['auth', 'role:super-admin'])

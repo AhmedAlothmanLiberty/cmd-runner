@@ -131,7 +131,7 @@ class TaskController extends Controller
 
     public function addComment(Request $request, Task $task): RedirectResponse
     {
-        $this->authorize('update', $task);
+        $this->authorize('view', $task);
 
         $data = $request->validate([
             'comment' => ['required', 'string'],
