@@ -44,6 +44,16 @@
             'icon' => 'gear-fill',
         ];
     }
+
+    if (auth()->user()->can('manage-tasks')) {
+        $links[] = [
+            'label' => 'Tasks',
+            'description' => 'Track work items',
+            'href' => route('admin.tasks.index'),
+            'active' => request()->routeIs('admin.tasks.*'),
+            'icon' => 'check2-square',
+        ];
+    }
 @endphp
 
 <div class="position-sticky pt-3 sidebar-sticky">
