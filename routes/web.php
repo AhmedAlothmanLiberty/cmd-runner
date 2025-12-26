@@ -34,9 +34,9 @@ Route::middleware(['auth'])
     ->name('admin.')
     ->group(function () {
         Route::get('tasks', [TaskController::class, 'index'])->name('tasks.index');
-        Route::get('tasks/{task}', [TaskController::class, 'show'])->name('tasks.show');
-        Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status');
-        Route::post('tasks/{task}/comments', [TaskController::class, 'addComment'])->name('tasks.comments.store');
+        Route::get('tasks/{task}', [TaskController::class, 'show'])->name('tasks.show')->whereNumber('task');
+        Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status')->whereNumber('task');
+        Route::post('tasks/{task}/comments', [TaskController::class, 'addComment'])->name('tasks.comments.store')->whereNumber('task');
     });
 
 Route::middleware(['auth', 'permission:manage-tasks'])

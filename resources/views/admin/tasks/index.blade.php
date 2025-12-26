@@ -45,7 +45,7 @@
                 display: inline-flex;
                 align-items: center;
                 padding: 0.25rem 0.6rem;
-                border-radius: 999px;
+                border-radius: 6px;
                 font-size: 0.75rem;
                 font-weight: 700;
                 text-transform: uppercase;
