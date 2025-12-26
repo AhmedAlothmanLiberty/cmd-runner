@@ -437,6 +437,74 @@
                 <div class="card shadow-sm border-0 mb-3">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <div>
+                            <h5 class="mb-0">Online Users</h5>
+                            <small class="text-muted">Active in the last 5 minutes.</small>
+                        </div>
+                    </div>
+                    <div class="list-group list-group-flush">
+                        @forelse ($onlineUsers as $user)
+                            <div class="list-group-item d-flex justify-content-between align-items-start">
+                                <div>
+                                    <p class="mb-0 fw-semibold">{{ $user->name }}</p>
+                                    <small class="text-muted">{{ $user->email }}</small>
+                                </div>
+                                <small class="text-muted">{{ $user->last_seen_at?->diffForHumans() ?? '—' }}</small>
+                            </div>
+                        @empty
+                            <div class="list-group-item text-center text-muted py-4">
+                                No users online.
+                            </div>
+                        @endforelse
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 mb-3">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Last Login</h5>
+                        <small class="text-muted">Most recent logins.</small>
+                    </div>
+                    <div class="list-group list-group-flush">
+                        @forelse ($lastLogins as $user)
+                            <div class="list-group-item d-flex justify-content-between align-items-start">
+                                <div>
+                                    <p class="mb-0 fw-semibold">{{ $user->name }}</p>
+                                    <small class="text-muted">{{ $user->email }}</small>
+                                </div>
+                                <small class="text-muted">{{ $user->last_login_at?->diffForHumans() ?? '—' }}</small>
+                            </div>
+                        @empty
+                            <div class="list-group-item text-center text-muted py-4">
+                                No logins yet.
+                            </div>
+                        @endforelse
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 mb-3">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Latest Updates</h5>
+                        <small class="text-muted">Recent user profile changes.</small>
+                    </div>
+                    <div class="list-group list-group-flush">
+                        @forelse ($latestUserUpdates as $user)
+                            <div class="list-group-item d-flex justify-content-between align-items-start">
+                                <div>
+                                    <p class="mb-0 fw-semibold">{{ $user->name }}</p>
+                                    <small class="text-muted">{{ $user->email }}</small>
+                                </div>
+                                <small class="text-muted">{{ $user->updated_at?->diffForHumans() ?? '—' }}</small>
+                            </div>
+                        @empty
+                            <div class="list-group-item text-center text-muted py-4">
+                                No updates yet.
+                            </div>
+                        @endforelse
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 mb-3">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <div>
                             <h5 class="mb-0">Last Package Update</h5>
                             <small class="text-muted">Latest composer run.</small>
                         </div>

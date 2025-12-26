@@ -87,6 +87,24 @@ class DashboardController extends Controller
             ->limit(8)
             ->get();
 
+        $onlineUsers = User::query()
+            ->whereNotNull('last_seen_at')
+            ->where('last_seen_at', '>=', now()->subMinutes(5))
+            ->orderByDesc('last_seen_at')
+            ->limit(8)
+            ->get(['id', 'name', 'email', 'last_seen_at', 'last_login_at']);
+
+        $lastLogins = User::query()
+            ->whereNotNull('last_login_at')
+            ->orderByDesc('last_login_at')
+            ->limit(8)
+            ->get(['id', 'name', 'email', 'last_login_at']);
+
+        $latestUserUpdates = User::query()
+            ->orderByDesc('updated_at')
+            ->limit(8)
+            ->get(['id', 'name', 'email', 'updated_at']);
+
         $highlights = [
             [
                 'label' => 'Automations',
@@ -141,6 +159,9 @@ class DashboardController extends Controller
             'latestAutomations' => $latestAutomations,
             'lastPackageUpdate' => $lastPackageUpdate,
             'latestTasks' => $latestTasks,
+            'onlineUsers' => $onlineUsers,
+            'lastLogins' => $lastLogins,
+            'latestUserUpdates' => $latestUserUpdates,
         ]);
     }
 }
