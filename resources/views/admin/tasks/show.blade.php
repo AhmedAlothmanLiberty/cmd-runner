@@ -45,7 +45,7 @@
                     <h6 class="mb-0">Comments</h6>
                 </div>
                 <div class="card-body">
-                    @can('update', $task)
+                    @auth
                         <form action="{{ route('admin.tasks.comments.store', $task) }}" method="POST" class="mb-3">
                             @csrf
                             <div class="mb-2">
@@ -54,7 +54,7 @@
                             </div>
                             <button type="submit" class="btn btn-primary btn-sm">Add comment</button>
                         </form>
-                    @endcan
+                    @endauth
 
                     @if ($task->comments->isEmpty())
                         <div class="text-muted">No comments yet.</div>

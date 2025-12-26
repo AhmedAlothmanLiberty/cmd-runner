@@ -10,6 +10,12 @@
                     <a class="nav-link @if (request()->routeIs('dashboard')) active fw-semibold text-primary @endif"
                         href="{{ route('dashboard') }}">Dashboard</a>
                 </li>
+                @auth
+                    <li class="nav-item">
+                        <a class="nav-link @if (request()->routeIs('admin.tasks.*')) active fw-semibold text-primary @endif"
+                            href="{{ route('admin.tasks.index') }}">Tasks</a>
+                    </li>
+                @endauth
                 @if (auth()->check() &&
                         auth()->user()->hasAnyRole(['admin', 'automation', 'super-admin']))
                     @if (auth()->check() &&
@@ -24,12 +30,6 @@
                         <a class="nav-link @if (request()->routeIs('admin.automations.*')) active fw-semibold text-primary @endif"
                             href="{{ route('admin.automations.index') }}">Automations</a>
                     </li>
-                    @if (auth()->user()->can('manage-tasks'))
-                        <li class="nav-item">
-                            <a class="nav-link @if (request()->routeIs('admin.tasks.*')) active fw-semibold text-primary @endif"
-                                href="{{ route('admin.tasks.index') }}">Tasks</a>
-                        </li>
-                    @endif
                     @if (auth()->user()->hasRole('super-admin'))
                         <li class="nav-item">
                             <a class="nav-link @if (request()->routeIs('admin.package-updates.*')) active fw-semibold text-primary @endif"
