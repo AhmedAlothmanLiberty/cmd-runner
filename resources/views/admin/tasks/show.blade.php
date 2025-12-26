@@ -30,7 +30,13 @@
                         <span class="badge text-bg-light text-uppercase">{{ $task->priority }}</span>
                         @if ($task->labels->isNotEmpty())
                             @foreach ($task->labels as $label)
-                                <span class="badge text-bg-light">{{ $label->name }}</span>
+                                @php
+                                    $labelColor = $label->color ?? '#e2e8f0';
+                                    $labelText = strtoupper($labelColor) === '#F59E0B' ? '#0f172a' : '#fff';
+                                @endphp
+                                <span class="badge" style="background-color: {{ $labelColor }}; color: {{ $labelText }};">
+                                    {{ $label->name }}
+                                </span>
                             @endforeach
                         @endif
                     </div>

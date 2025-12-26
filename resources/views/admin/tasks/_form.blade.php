@@ -90,6 +90,7 @@
             @foreach ($labels as $label)
                 <option
                     value="{{ $label->id }}"
+                    data-color="{{ $label->color }}"
                     @selected(in_array($label->id, old('labels', isset($task) ? $task->labels->pluck('id')->all() : [])))
                 >
                     {{ $label->name }}
@@ -140,7 +141,11 @@
                     preview.innerHTML = '';
                     Array.from(select.selectedOptions).forEach((option) => {
                         const chip = document.createElement('span');
-                        chip.className = 'badge text-bg-light';
+                        const color = option.dataset.color || '#e2e8f0';
+                        const textColor = color.toUpperCase() === '#F59E0B' ? '#0f172a' : '#fff';
+                        chip.className = 'badge';
+                        chip.style.backgroundColor = color;
+                        chip.style.color = textColor;
                         chip.textContent = option.textContent.trim();
                         preview.appendChild(chip);
                     });
