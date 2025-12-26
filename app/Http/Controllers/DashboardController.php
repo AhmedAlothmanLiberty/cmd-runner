@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Automation;
 use App\Models\AutomationLog;
 use App\Models\PackageUpdateLog;
+use App\Models\Task;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -24,6 +25,12 @@ class DashboardController extends Controller
             ->where('command', '!=', 'app:test-automation-command')
             ->latest()
             ->limit(6)
+            ->get();
+
+        $latestTasks = Task::query()
+            ->with(['assignedTo', 'labels'])
+            ->latest()
+            ->limit(8)
             ->get();
 
         $highlights = [
@@ -78,6 +85,7 @@ class DashboardController extends Controller
             'activity' => $activity,
             'latestAutomations' => $latestAutomations,
             'lastPackageUpdate' => $lastPackageUpdate,
+            'latestTasks' => $latestTasks,
         ]);
     }
 }

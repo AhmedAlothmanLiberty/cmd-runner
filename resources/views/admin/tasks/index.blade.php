@@ -1,0 +1,359 @@
+<x-app-layout>
+    @once
+        <style>
+            .task-table td, .task-table th {
+                padding: 0.85rem 1rem;
+                vertical-align: middle;
+            }
+            .task-table tbody tr {
+                border-left: 4px solid transparent;
+                transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+            }
+            .task-table tbody tr:hover {
+                background: #f8fafc;
+                border-color: #0ea5e9;
+                box-shadow: inset 0 1px 0 rgba(0,0,0,0.03), inset 0 -1px 0 rgba(0,0,0,0.03);
+            }
+            .task-table .title {
+                font-weight: 700;
+                color: #0f172a;
+            }
+            .task-table .subtext {
+                color: #6b7280;
+                font-size: 0.85rem;
+            }
+            .task-table .pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.4rem;
+                padding: 0.25rem 0.55rem;
+                border-radius: 999px;
+                border: 1px solid #e5e7eb;
+                background: #f8fafc;
+                font-size: 0.78rem;
+                color: #334155;
+                letter-spacing: 0.02em;
+            }
+            .task-table-wrapper {
+                min-height: 380px;
+            }
+            .status-select {
+                border-radius: 999px;
+                font-size: 0.75rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.02em;
+                padding: 0.25rem 1.6rem 0.25rem 0.75rem;
+                border-width: 1px;
+            }
+            .status-select--todo {
+                background: #f1f5f9;
+                border-color: #cbd5f5;
+                color: #475569;
+            }
+            .status-select--in_progress {
+                background: #e0f2fe;
+                border-color: #7dd3fc;
+                color: #0369a1;
+            }
+            .status-select--done {
+                background: #dcfce7;
+                border-color: #86efac;
+                color: #166534;
+            }
+            .status-select--blocked {
+                background: #fee2e2;
+                border-color: #fca5a5;
+                color: #b91c1c;
+            }
+            .badge-soft {
+                border-radius: 999px;
+                padding: 0.25rem 0.6rem;
+                font-size: 0.75rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.02em;
+            }
+            .badge-soft-todo { background: #f1f5f9; color: #475569; }
+            .badge-soft-progress { background: #e0f2fe; color: #0369a1; }
+            .badge-soft-done { background: #dcfce7; color: #166534; }
+            .badge-soft-blocked { background: #fee2e2; color: #b91c1c; }
+            .badge-soft-low { background: #eef2ff; color: #3730a3; }
+            .badge-soft-medium { background: #fef9c3; color: #a16207; }
+            .badge-soft-high { background: #ffe4e6; color: #be123c; }
+            .dropdown .dropdown-item i { color: #94a3b8; }
+        </style>
+    @endonce
+
+    <x-slot name="header">
+        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between w-100">
+            <div>
+                <p class="text-uppercase text-muted small fw-semibold mb-1">Admin</p>
+                <h2 class="h4 mb-0">Tasks</h2>
+                <small class="text-muted">Track work items and keep them moving.</small>
+            </div>
+            @can('manage-tasks')
+                <div class="mt-3 mt-md-0">
+                    <a href="{{ route('admin.tasks.create') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-lg me-1"></i> New Task
+                    </a>
+                </div>
+            @endcan
+        </div>
+    </x-slot>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="border-bottom bg-light px-3 py-3">
+                <form method="GET" action="{{ route('admin.tasks.index') }}" class="row g-2 align-items-end">
+                    <div class="col-12 col-md-5 col-lg-4">
+                        <label class="form-label mb-1">Search</label>
+                        <input
+                            type="text"
+                            name="search"
+                            class="form-control"
+                            value="{{ $filters['search'] ?? '' }}"
+                            placeholder="Title or description"
+                        />
+                    </div>
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label mb-1">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="">All</option>
+                            <option value="todo" @selected(($filters['status'] ?? '') === 'todo')>To do</option>
+                            <option value="in_progress" @selected(($filters['status'] ?? '') === 'in_progress')>In progress</option>
+                            <option value="done" @selected(($filters['status'] ?? '') === 'done')>Done</option>
+                            <option value="blocked" @selected(($filters['status'] ?? '') === 'blocked')>Blocked</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label mb-1">Priority</label>
+                        <select name="priority" class="form-select">
+                            <option value="">All</option>
+                            <option value="low" @selected(($filters['priority'] ?? '') === 'low')>Low</option>
+                            <option value="medium" @selected(($filters['priority'] ?? '') === 'medium')>Medium</option>
+                            <option value="high" @selected(($filters['priority'] ?? '') === 'high')>High</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4 col-lg-3">
+                        <label class="form-label mb-1">Assigned to</label>
+                        <select name="assigned_to" class="form-select">
+                            <option value="">Anyone</option>
+                            @foreach ($users as $user)
+                                <option
+                                    value="{{ $user->id }}"
+                                    @selected((string) ($filters['assigned_to'] ?? '') === (string) $user->id)
+                                >
+                                    {{ $user->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-auto d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-funnel me-1"></i> Filter
+                        </button>
+                        <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary">
+                            Reset
+                        </a>
+                    </div>
+                </form>
+            </div>
+
+            @if (session('status'))
+                <div class="alert alert-info m-3 mb-0">
+                    {{ session('status') }}
+                </div>
+            @endif
+
+            <div class="table-responsive task-table-wrapper">
+                <table class="table table-hover mb-0 align-middle task-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>Task</th>
+                            <th>Status</th>
+                            <th>Priority</th>
+                            <th>Assigned</th>
+                            <th>Reporter</th>
+                            <th class="text-nowrap">Due</th>
+                            <th class="text-nowrap">Updated</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($tasks as $task)
+                            <tr>
+                                <td class="text-muted fw-semibold">
+                                    {{ $loop->iteration + ($tasks->firstItem() ?? 0) - 1 }}
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-column">
+                                        <a class="title text-decoration-none" href="{{ route('admin.tasks.show', $task) }}">
+                                            {{ $task->title }}
+                                        </a>
+                                        @if ($task->description)
+                                            <span class="subtext">{{ \Illuminate\Support\Str::limit($task->description, 80) }}</span>
+                                        @endif
+                                        @if ($task->labels->isNotEmpty())
+                                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                                @foreach ($task->labels as $label)
+                                                    <span class="pill">{{ $label->name }}</span>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                    </div>
+                                </td>
+                                <td>
+                                    @can('update', $task)
+                                        <form action="{{ route('admin.tasks.status', $task) }}" method="POST" class="task-status-form">
+                                            @csrf
+                                            @method('PATCH')
+                                            <select name="status" class="form-select form-select-sm task-status-select status-select">
+                                                <option value="todo" @selected($task->status === 'todo')>To do</option>
+                                                <option value="in_progress" @selected($task->status === 'in_progress')>In progress</option>
+                                                <option value="done" @selected($task->status === 'done')>Done</option>
+                                                <option value="blocked" @selected($task->status === 'blocked')>Blocked</option>
+                                            </select>
+                                        </form>
+                                    @else
+                                        @php
+                                            $statusClass = match ($task->status) {
+                                                'in_progress' => 'badge-soft-progress',
+                                                'done' => 'badge-soft-done',
+                                                'blocked' => 'badge-soft-blocked',
+                                                default => 'badge-soft-todo',
+                                            };
+                                        @endphp
+                                        <span class="badge-soft {{ $statusClass }}">{{ str_replace('_', ' ', $task->status) }}</span>
+                                    @endcan
+                                </td>
+                                <td>
+                                    @php
+                                        $priorityClass = match ($task->priority) {
+                                            'high' => 'badge-soft-high',
+                                            'medium' => 'badge-soft-medium',
+                                            default => 'badge-soft-low',
+                                        };
+                                    @endphp
+                                    <span class="badge-soft {{ $priorityClass }}">{{ $task->priority }}</span>
+                                </td>
+                                <td class="small text-muted">
+                                    {{ $task->assignedTo?->name ?? 'Unassigned' }}
+                                </td>
+                                <td class="small text-muted">
+                                    {{ $task->createdBy?->name ?? '—' }}
+                                </td>
+                                <td class="small text-muted text-nowrap">
+                                    {{ $task->due_at ? $task->due_at->format('Y-m-d H:i') : '—' }}
+                                </td>
+                                <td class="small text-muted text-nowrap">
+                                    {{ $task->updated_at ? $task->updated_at->diffForHumans() : '—' }}
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    @can('update', $task)
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <i class="bi bi-three-dots"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li><a class="dropdown-item" href="{{ route('admin.tasks.edit', $task) }}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+                                                @can('delete', $task)
+                                                    <li>
+                                                        <form action="{{ route('admin.tasks.destroy', $task) }}" method="POST" onsubmit="return confirm('Delete this task?')">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="dropdown-item text-danger">
+                                                                <i class="bi bi-trash me-2"></i>Delete
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                @endcan
+                                            </ul>
+                                        </div>
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endcan
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-4">No tasks yet.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="p-3">
+                {{ $tasks->links() }}
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="taskStatusToast" class="toast align-items-center text-bg-dark border-0" role="alert" aria-live="polite" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">Status updated.</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+</x-app-layout>
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toastEl = document.getElementById('taskStatusToast');
+            const toastBody = toastEl?.querySelector('.toast-body');
+            const toast = toastEl ? new bootstrap.Toast(toastEl, { delay: 2000 }) : null;
+
+            document.querySelectorAll('.task-status-form').forEach((form) => {
+                const select = form.querySelector('.task-status-select');
+                if (!select) return;
+
+                const updateSelectStyle = () => {
+                    select.classList.remove(
+                        'status-select--todo',
+                        'status-select--in_progress',
+                        'status-select--done',
+                        'status-select--blocked'
+                    );
+                    select.classList.add(`status-select--${select.value}`);
+                };
+
+                updateSelectStyle();
+                select.addEventListener('change', async () => {
+                    updateSelectStyle();
+                    const formData = new FormData(form);
+
+                    try {
+                        const response = await fetch(form.action, {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                            },
+                            body: formData,
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Status update failed.');
+                        }
+
+                        if (toast && toastBody) {
+                            toastBody.textContent = 'Task status updated.';
+                            toast.show();
+                        }
+                    } catch (error) {
+                        if (toast && toastBody) {
+                            toastBody.textContent = 'Could not update status.';
+                            toast.show();
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+@endpush

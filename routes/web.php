@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\PackageUpdateController;
+use App\Http\Controllers\Admin\TaskController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AutomationController;
 use App\Http\Controllers\AutomationRunController;
@@ -26,6 +27,15 @@ Route::middleware(['auth', 'role:admin|super-admin'])
         Route::get('/users/{user}/edit', [UserManagementController::class, 'edit'])->name('users.edit');
         Route::put('/users/{user}', [UserManagementController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [UserManagementController::class, 'destroy'])->name('users.destroy');
+    });
+
+Route::middleware(['auth', 'permission:manage-tasks'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::post('tasks/{task}/comments', [TaskController::class, 'addComment'])->name('tasks.comments.store');
+        Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status');
+        Route::resource('tasks', TaskController::class);
     });
 
 Route::middleware(['auth', 'role:super-admin'])
