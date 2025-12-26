@@ -26,7 +26,7 @@ class DashboardController extends Controller
             if (! empty($assignedTo)) {
                 $taskQuery->where('assigned_to', $assignedTo);
             } else {
-                $taskQuery->where('assigned_to', $user?->id);
+                $taskQuery->whereNotNull('assigned_to');
             }
 
             if (in_array($status, ['todo', 'in_progress', 'done', 'blocked'], true)) {
