@@ -148,7 +148,7 @@
                     <div class="col-6 col-md-3 col-lg-2">
                         <label class="form-label mb-1">Assignee</label>
                         <select name="assigned_to" class="form-select">
-                            <option value="">Me</option>
+                            <option value="">All assigned</option>
                             @foreach ($users as $user)
                                 <option
                                     value="{{ $user->id }}"
