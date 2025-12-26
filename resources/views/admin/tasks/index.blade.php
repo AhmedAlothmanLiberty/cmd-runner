@@ -34,36 +34,37 @@
                 color: #334155;
                 letter-spacing: 0.02em;
             }
+            .label-pill {
+                border: 0;
+                color: #fff;
+            }
             .task-table-wrapper {
                 min-height: 380px;
             }
-            .status-select {
+            .status-text {
+                display: inline-flex;
+                align-items: center;
+                padding: 0.25rem 0.6rem;
                 border-radius: 999px;
                 font-size: 0.75rem;
                 font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: 0.02em;
-                padding: 0.25rem 1.6rem 0.25rem 0.75rem;
-                border-width: 1px;
             }
-            .status-select--todo {
-                background: #f1f5f9;
-                border-color: #cbd5f5;
-                color: #475569;
+            .status-cell--todo .status-text {
+                background: #bae6fd;
+                color: #075985;
             }
-            .status-select--in_progress {
-                background: #e0f2fe;
-                border-color: #7dd3fc;
-                color: #0369a1;
+            .status-cell--in_progress .status-text {
+                background: #fef9c3;
+                color: #854d0e;
             }
-            .status-select--done {
-                background: #dcfce7;
-                border-color: #86efac;
+            .status-cell--done .status-text {
+                background: #bbf7d0;
                 color: #166534;
             }
-            .status-select--blocked {
-                background: #fee2e2;
-                border-color: #fca5a5;
+            .status-cell--blocked .status-text {
+                background: #fecaca;
                 color: #b91c1c;
             }
             .badge-soft {
@@ -198,35 +199,20 @@
                                         @if ($task->labels->isNotEmpty())
                                             <div class="d-flex flex-wrap gap-1 mt-1">
                                                 @foreach ($task->labels as $label)
-                                                    <span class="pill">{{ $label->name }}</span>
+                                                    @php
+                                                        $labelColor = $label->color ?? '#e2e8f0';
+                                                        $labelText = strtoupper($labelColor) === '#F59E0B' ? '#0f172a' : '#fff';
+                                                    @endphp
+                                                    <span class="pill label-pill" style="background-color: {{ $labelColor }}; color: {{ $labelText }};">
+                                                        {{ $label->name }}
+                                                    </span>
                                                 @endforeach
                                             </div>
                                         @endif
                                     </div>
                                 </td>
-                                <td>
-                                    @can('update', $task)
-                                        <form action="{{ route('admin.tasks.status', $task) }}" method="POST" class="task-status-form">
-                                            @csrf
-                                            @method('PATCH')
-                                            <select name="status" class="form-select form-select-sm task-status-select status-select">
-                                                <option value="todo" @selected($task->status === 'todo')>To do</option>
-                                                <option value="in_progress" @selected($task->status === 'in_progress')>In progress</option>
-                                                <option value="done" @selected($task->status === 'done')>Done</option>
-                                                <option value="blocked" @selected($task->status === 'blocked')>Blocked</option>
-                                            </select>
-                                        </form>
-                                    @else
-                                        @php
-                                            $statusClass = match ($task->status) {
-                                                'in_progress' => 'badge-soft-progress',
-                                                'done' => 'badge-soft-done',
-                                                'blocked' => 'badge-soft-blocked',
-                                                default => 'badge-soft-todo',
-                                            };
-                                        @endphp
-                                        <span class="badge-soft {{ $statusClass }}">{{ str_replace('_', ' ', $task->status) }}</span>
-                                    @endcan
+                                <td class="status-cell status-cell--{{ $task->status }}">
+                                    <span class="status-text">{{ str_replace('_', ' ', $task->status) }}</span>
                                 </td>
                                 <td>
                                     @php
@@ -291,69 +277,4 @@
         </div>
     </div>
 
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-        <div id="taskStatusToast" class="toast align-items-center text-bg-dark border-0" role="alert" aria-live="polite" aria-atomic="true">
-            <div class="d-flex">
-                <div class="toast-body">Status updated.</div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        </div>
-    </div>
 </x-app-layout>
-
-@push('scripts')
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const toastEl = document.getElementById('taskStatusToast');
-            const toastBody = toastEl?.querySelector('.toast-body');
-            const toast = toastEl ? new bootstrap.Toast(toastEl, { delay: 2000 }) : null;
-
-            document.querySelectorAll('.task-status-form').forEach((form) => {
-                const select = form.querySelector('.task-status-select');
-                if (!select) return;
-
-                const updateSelectStyle = () => {
-                    select.classList.remove(
-                        'status-select--todo',
-                        'status-select--in_progress',
-                        'status-select--done',
-                        'status-select--blocked'
-                    );
-                    select.classList.add(`status-select--${select.value}`);
-                };
-
-                updateSelectStyle();
-                select.addEventListener('change', async () => {
-                    updateSelectStyle();
-                    const formData = new FormData(form);
-
-                    try {
-                        const response = await fetch(form.action, {
-                            method: 'POST',
-                            headers: {
-                                'Accept': 'application/json',
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-                            },
-                            body: formData,
-                        });
-
-                        if (!response.ok) {
-                            throw new Error('Status update failed.');
-                        }
-
-                        if (toast && toastBody) {
-                            toastBody.textContent = 'Task status updated.';
-                            toast.show();
-                        }
-                    } catch (error) {
-                        if (toast && toastBody) {
-                            toastBody.textContent = 'Could not update status.';
-                            toast.show();
-                        }
-                    }
-                });
-            });
-        });
-    </script>
-@endpush

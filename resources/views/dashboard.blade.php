@@ -83,6 +83,10 @@
                 color: #334155;
                 letter-spacing: 0.02em;
             }
+            .task-pill.label-pill {
+                border: 0;
+                color: #fff;
+            }
             .task-badge {
                 border-radius: 999px;
                 padding: 0.25rem 0.6rem;
@@ -218,7 +222,13 @@
                                         @if ($task->labels->isNotEmpty())
                                             <div class="d-flex flex-wrap gap-1 mt-1">
                                                 @foreach ($task->labels as $label)
-                                                    <span class="task-pill">{{ $label->name }}</span>
+                                                    @php
+                                                        $labelColor = $label->color ?? '#e2e8f0';
+                                                        $labelText = strtoupper($labelColor) === '#F59E0B' ? '#0f172a' : '#fff';
+                                                    @endphp
+                                                    <span class="task-pill label-pill" style="background-color: {{ $labelColor }}; color: {{ $labelText }};">
+                                                        {{ $label->name }}
+                                                    </span>
                                                 @endforeach
                                             </div>
                                         @endif
@@ -342,7 +352,13 @@
                                         @if ($task->labels->isNotEmpty())
                                             <div class="d-flex flex-wrap gap-1 mt-1">
                                                 @foreach ($task->labels as $label)
-                                                    <span class="task-pill">{{ $label->name }}</span>
+                                                    @php
+                                                        $labelColor = $label->color ?? '#e2e8f0';
+                                                        $labelText = strtoupper($labelColor) === '#F59E0B' ? '#0f172a' : '#fff';
+                                                    @endphp
+                                                    <span class="task-pill label-pill" style="background-color: {{ $labelColor }}; color: {{ $labelText }};">
+                                                        {{ $label->name }}
+                                                    </span>
                                                 @endforeach
                                             </div>
                                         @endif
