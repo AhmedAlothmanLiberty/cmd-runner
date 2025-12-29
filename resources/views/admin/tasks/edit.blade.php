@@ -1,4 +1,63 @@
 <x-app-layout>
+    @once
+        <style>
+            .ops-shell {
+                background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 60%, #fdf2f8 100%);
+                border-radius: 18px;
+                padding: 1.5rem;
+            }
+            .ops-panel {
+                border: 1px solid #e2e8f0;
+                border-radius: 16px;
+                background: #fff;
+                box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+            }
+            .ops-kpi {
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                background: #f8fafc;
+                padding: 0.75rem 1rem;
+            }
+            .ops-kpi strong {
+                color: #0f172a;
+            }
+            .ops-title {
+                font-weight: 700;
+                color: #0f172a;
+            }
+            .ops-subtext {
+                color: #64748b;
+                font-size: 0.9rem;
+            }
+            .ops-section-title {
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: #64748b;
+                font-size: 0.72rem;
+                font-weight: 700;
+            }
+            .ops-pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.35rem;
+                padding: 0.35rem 0.7rem;
+                border-radius: 999px;
+                font-size: 0.75rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+            }
+            .ops-pill.todo { background: #bae6fd; color: #075985; }
+            .ops-pill.in_progress { background: #fef9c3; color: #854d0e; }
+            .ops-pill.done { background: #bbf7d0; color: #166534; }
+            .ops-pill.blocked { background: #fecaca; color: #b91c1c; }
+            .ops-rail {
+                border-left: 2px dashed #e2e8f0;
+                padding-left: 1.25rem;
+            }
+        </style>
+    @endonce
+
     <x-slot name="header">
         <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between w-100">
             <div>
@@ -12,21 +71,65 @@
         </div>
     </x-slot>
 
-    <div class="card shadow-sm border-0 mx-auto" style="max-width: 900px;">
-        <div class="card-body">
-            <form action="{{ route('admin.tasks.update', $task) }}" method="POST" enctype="multipart/form-data">
-                @csrf
-                @method('PUT')
-                @include('admin.tasks._form')
-                <div class="mt-4 d-flex justify-content-end gap-2">
-                    <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary">Save</button>
+    <div class="ops-shell">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+            <div>
+                <div class="ops-section-title mb-1">Task Overview</div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <div class="ops-title">{{ $task->title }}</div>
+                    <span class="ops-pill {{ $task->status }}">{{ str_replace('_', ' ', $task->status) }}</span>
                 </div>
-            </form>
-            <hr class="my-4">
-            <div class="row g-3">
-                <div class="col-12 col-lg-6">
-                    <h6 class="text-uppercase text-muted small fw-semibold mb-3">Comments</h6>
+                <div class="ops-subtext">Assigned to {{ $task->assignedTo?->name ?? 'Unassigned' }} · Reporter {{ $task->createdBy?->name ?? '—' }}</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <span class="ops-pill" style="background:#e0e7ff;color:#3730a3;">{{ $task->priority }}</span>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-12 col-lg-8">
+                <div class="ops-panel p-4">
+                    <div class="ops-section-title mb-3">Control Panel</div>
+                    <form action="{{ route('admin.tasks.update', $task) }}" method="POST" enctype="multipart/form-data">
+                        @csrf
+                        @method('PUT')
+                        @include('admin.tasks._form')
+                        <div class="mt-4 d-flex justify-content-end gap-2">
+                            <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="col-12 col-lg-4">
+                <div class="ops-panel p-4 h-100 ops-rail">
+                    <div class="ops-section-title mb-3">Mission Status</div>
+                    <div class="d-flex flex-column gap-3">
+                        <div class="ops-kpi">
+                            <div class="text-muted small">Last update</div>
+                            <strong>{{ $task->updated_at?->diffForHumans() ?? '—' }}</strong>
+                        </div>
+                        <div class="ops-kpi">
+                            <div class="text-muted small">Due</div>
+                            <strong>{{ $task->due_at ? $task->due_at->format('Y-m-d H:i') : '—' }}</strong>
+                        </div>
+                        <div class="ops-kpi">
+                            <div class="text-muted small">Attachments</div>
+                            <strong>{{ $task->attachments->count() }} files</strong>
+                        </div>
+                        <div class="ops-kpi">
+                            <div class="text-muted small">Comments</div>
+                            <strong>{{ $task->comments->count() }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-3">
+            <div class="col-12 col-lg-6">
+                <div class="ops-panel p-4">
+                    <div class="ops-section-title mb-3">Comments</div>
                     @if ($task->comments->isEmpty())
                         <div class="text-muted">No comments yet.</div>
                     @else
@@ -43,8 +146,10 @@
                         </div>
                     @endif
                 </div>
-                <div class="col-12 col-lg-6">
-                    <h6 class="text-uppercase text-muted small fw-semibold mb-3">Attachments</h6>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="ops-panel p-4">
+                    <div class="ops-section-title mb-3">Attachments</div>
                     @if ($task->attachments->isEmpty())
                         <div class="text-muted">No attachments yet.</div>
                     @else
