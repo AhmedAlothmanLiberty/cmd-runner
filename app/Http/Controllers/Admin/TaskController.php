@@ -20,6 +20,11 @@ class TaskController extends Controller
     public function index(Request $request): View
     {
         $query = Task::query()->with(['assignedTo', 'createdBy', 'updatedBy', 'labels']);
+        $user = $request->user();
+
+        if (! $user?->hasRole('super-admin')) {
+            $query->whereNotIn('status', ['deployed-s', 'deployed-p']);
+        }
 
         $search = trim((string) $request->input('search', ''));
         $status = $request->input('status');
@@ -33,7 +38,7 @@ class TaskController extends Controller
             });
         }
 
-        if (in_array($status, ['todo', 'in_progress', 'done', 'blocked'], true)) {
+        if (in_array($status, ['todo', 'in_progress', 'done', 'blocked', 'deployed-s', 'deployed-p', 'reopen'], true)) {
             $query->where('status', $status);
         }
 
@@ -157,7 +162,7 @@ class TaskController extends Controller
         $this->authorize('update', $task);
 
         $validated = $request->validate([
-            'status' => ['required', 'in:todo,in_progress,done,blocked'],
+            'status' => ['required', 'in:todo,in_progress,done,blocked,deployed-s,deployed-p,reopen'],
         ]);
 
         $task->status = $validated['status'];

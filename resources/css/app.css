@@ -1,3 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+    --bs-primary: #329ad6;
+    --bs-primary-rgb: 50, 154, 214;
+    --bs-link-color: #329ad6;
+    --bs-link-hover-color: #2b86bd;
+}

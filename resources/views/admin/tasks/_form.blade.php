@@ -35,6 +35,9 @@
             <option value="in_progress" @selected($statusValue === 'in_progress')>In progress</option>
             <option value="done" @selected($statusValue === 'done')>Done</option>
             <option value="blocked" @selected($statusValue === 'blocked')>Blocked</option>
+            <option value="deployed-s" @selected($statusValue === 'deployed-s')>Deployed S</option>
+            <option value="deployed-p" @selected($statusValue === 'deployed-p')>Deployed P</option>
+            <option value="reopen" @selected($statusValue === 'reopen')>Reopen</option>
         </select>
         @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
