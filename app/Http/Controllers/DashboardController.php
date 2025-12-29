@@ -21,6 +21,10 @@ class DashboardController extends Controller
             $status = $request->input('status');
             $assignedTo = $request->input('assigned_to');
 
+            if ($status === null || $status === '') {
+                $status = 'in_progress';
+            }
+
             $taskQuery = Task::query()->with(['assignedTo', 'labels']);
 
             if (! empty($assignedTo)) {

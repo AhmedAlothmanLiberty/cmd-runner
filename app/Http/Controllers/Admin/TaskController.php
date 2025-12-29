@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\UpdateTaskRequest;
 use App\Models\Task;
 use App\Models\TaskLabel;
 use App\Models\User;
+use App\Notifications\TaskEventNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -92,6 +93,7 @@ class TaskController extends Controller
         $this->syncLabels($task, $data['labels'] ?? []);
         $this->storeAttachments($task, $request);
         $this->storeComment($task, $request->input('comment'), $userId);
+        $this->notifyTaskEvent($task, 'new_task');
 
         return redirect()->route('admin.tasks.index')->with('status', 'Task created.');
     }
@@ -125,6 +127,7 @@ class TaskController extends Controller
         $this->syncLabels($task, $data['labels'] ?? []);
         $this->storeAttachments($task, $request);
         $this->storeComment($task, $request->input('comment'), $userId);
+        $this->notifyTaskEvent($task, 'task_updated');
 
         return redirect()->route('admin.tasks.index')->with('status', 'Task updated.');
     }
@@ -142,6 +145,10 @@ class TaskController extends Controller
             'body' => $data['comment'],
         ]);
 
+        $this->notifyTaskEvent($task, 'new_comment', [
+            'comment' => 'New comment',
+        ]);
+
         return back()->with('status', 'Comment added.');
     }
 
@@ -157,6 +164,10 @@ class TaskController extends Controller
         $task->updated_by = auth()->id();
         $task->completed_at = $task->status === 'done' ? ($task->completed_at ?? now()) : null;
         $task->save();
+
+        $this->notifyTaskEvent($task, 'status_changed', [
+            'status' => $task->status,
+        ]);
 
         if ($request->expectsJson()) {
             return response()->json(['status' => 'ok']);
@@ -215,5 +226,66 @@ class TaskController extends Controller
             'user_id' => $userId,
             'body' => $comment,
         ]);
+    }
+
+    // private function notifyTaskEvent(Task $task, string $title, string $message): void
+    // {
+    //     $actorId = auth()->id();
+    //     $recipients = collect();
+
+    //     if ($task->assigned_to) {
+    //         $recipients->push($task->assignedTo);
+    //     }
+
+    //     if ($task->created_by) {
+    //         $recipients->push($task->createdBy);
+    //     }
+
+    //     $adminUsers = User::query()
+    //         ->whereHas('roles', function ($query): void {
+    //             $query->whereIn('name', ['admin', 'super-admin']);
+    //         })
+    //         ->get();
+
+    //     $recipients = $recipients->merge($adminUsers)
+    //         ->filter()
+    //         ->unique('id')
+    //         ->reject(fn (User $user) => $actorId && (int) $user->id === (int) $actorId);
+
+    //     $recipients->each(function (User $user) use ($task, $title, $message): void {
+    //         $user->notify(new TaskEventNotification($task, $title, $message));
+    //     });
+    // }
+    private function notifyTaskEvent(Task $task, string $type, array $context = []): void
+    {
+        $actorId = auth()->id();
+        $actorName = auth()->user()->name ?? null;
+        $titleMap = [
+            'new_task' => 'New task',
+            'task_updated' => 'Task updated',
+            'new_comment' => 'New comment',
+            'status_changed' => 'Status changed',
+        ];
+
+        $title = $titleMap[$type] ?? 'Task update';
+        $message = $title;
+        $status = $context['status'] ?? null;
+        $comment = $context['comment'] ?? null;
+
+        $recipients = User::query()
+            ->get()
+            ->reject(fn (User $user) => $actorId && (int) $user->id === (int) $actorId);
+
+        $recipients->each(function (User $user) use ($task, $type, $title, $message, $status, $actorName, $comment): void {
+            $user->notify(new TaskEventNotification(
+                $task,
+                $type,
+                $title,
+                $message,
+                $status,
+                $actorName,
+                $comment
+            ));
+        });
     }
 }

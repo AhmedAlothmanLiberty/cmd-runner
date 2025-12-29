@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\PackageUpdateController;
 use App\Http\Controllers\Admin\TaskController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AutomationController;
 use App\Http\Controllers\AutomationRunController;
@@ -38,6 +39,12 @@ Route::middleware(['auth'])
         Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status')->whereNumber('task');
         Route::post('tasks/{task}/comments', [TaskController::class, 'addComment'])->name('tasks.comments.store')->whereNumber('task');
     });
+
+Route::middleware('auth')->group(function () {
+    Route::get('/notifications/latest', [NotificationController::class, 'latest'])->name('notifications.latest');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
+});
 
 Route::middleware(['auth', 'permission:manage-tasks'])
     ->prefix('admin')
