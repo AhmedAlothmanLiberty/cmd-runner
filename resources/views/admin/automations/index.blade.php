@@ -126,7 +126,19 @@
                                     </span>
                                 </td>
                                 <td class="small text-muted">
-                                    {{ $automation->last_run_at ? $automation->last_run_at->format('Y-m-d H:i') : '—' }}
+                                    @php $lastRun = $automation->last_run_at; @endphp
+                                    @if ($lastRun)
+                                        @php
+                                            $lastRunTz = $lastRun->copy()->setTimezone(config('app.timezone'));
+                                            $diffMinutes = now($lastRunTz->getTimezone())->diffInMinutes($lastRunTz, false);
+                                            $hours = intdiv(max($diffMinutes, 0), 60);
+                                            $minutes = max($diffMinutes, 0) % 60;
+                                        @endphp
+                                        <div>{{ $lastRunTz->format('Y-m-d H:i') }} ({{ $lastRunTz->getTimezone()->getName() }})</div>
+                                        <div class="text-muted"> {{ $hours }}h {{ $minutes }}m ago</div>
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
                                 </td>
                                 <td class="small">
                                     @if ($automation->last_run_status)
