@@ -67,6 +67,18 @@
                 background: #fecaca;
                 color: #b91c1c;
             }
+            .status-cell--deployed-s .status-text {
+                background: #e0f2fe;
+                color: #0c4a6e;
+            }
+            .status-cell--deployed-p .status-text {
+                background: #e2e8f0;
+                color: #1e293b;
+            }
+            .status-cell--reopen .status-text {
+                background: #fef3c7;
+                color: #92400e;
+            }
             .badge-soft {
                 border-radius: 999px;
                 padding: 0.25rem 0.6rem;
@@ -212,7 +224,9 @@
                                     </div>
                                 </td>
                                 <td class="status-cell status-cell--{{ $task->status }}">
-                                    <span class="status-text">{{ str_replace('_', ' ', $task->status) }}</span>
+                                    <span class="status-text">
+                                        {{ str_replace(['_', '-'], ' ', $task->status) }}
+                                    </span>
                                 </td>
                                 <td>
                                     @php

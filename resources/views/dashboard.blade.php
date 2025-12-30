@@ -99,6 +99,9 @@
             .task-badge-progress { background: #e0f2fe; color: #0369a1; }
             .task-badge-done { background: #dcfce7; color: #166534; }
             .task-badge-blocked { background: #fee2e2; color: #b91c1c; }
+            .task-badge-deployed-s { background: #e0f2fe; color: #0c4a6e; }
+            .task-badge-deployed-p { background: #e2e8f0; color: #1e293b; }
+            .task-badge-reopen { background: #fef3c7; color: #92400e; }
             .task-priority-low { background: #eef2ff; color: #3730a3; }
             .task-priority-medium { background: #fef9c3; color: #a16207; }
             .task-priority-high { background: #ffe4e6; color: #be123c; }
@@ -171,6 +174,9 @@
                             <option value="in_progress" @selected(($filters['status'] ?? '') === 'in_progress')>In progress</option>
                             <option value="done" @selected(($filters['status'] ?? '') === 'done')>Done</option>
                             <option value="blocked" @selected(($filters['status'] ?? '') === 'blocked')>Blocked</option>
+                            <option value="deployed-s" @selected(($filters['status'] ?? '') === 'deployed-s')>Deployed S</option>
+                            <option value="deployed-p" @selected(($filters['status'] ?? '') === 'deployed-p')>Deployed P</option>
+                            <option value="reopen" @selected(($filters['status'] ?? '') === 'reopen')>Reopen</option>
                         </select>
                     </div>
                     <div class="col-12 col-md-auto d-flex gap-2">
@@ -202,6 +208,9 @@
                                     'in_progress' => 'task-badge-progress',
                                     'done' => 'task-badge-done',
                                     'blocked' => 'task-badge-blocked',
+                                    'deployed-s' => 'task-badge-deployed-s',
+                                    'deployed-p' => 'task-badge-deployed-p',
+                                    'reopen' => 'task-badge-reopen',
                                     default => 'task-badge-todo',
                                 };
                                 $priorityClass = match ($task->priority) {

@@ -27,13 +27,15 @@ class DashboardController extends Controller
 
             $taskQuery = Task::query()->with(['assignedTo', 'labels']);
 
+            $taskQuery->whereNotIn('status', ['deployed-s', 'deployed-p']);
+
             if (! empty($assignedTo)) {
                 $taskQuery->where('assigned_to', $assignedTo);
             } else {
                 $taskQuery->whereNotNull('assigned_to');
             }
 
-            if (in_array($status, ['todo', 'in_progress', 'done', 'blocked'], true)) {
+            if (in_array($status, ['todo', 'in_progress', 'done', 'blocked', 'deployed-s', 'deployed-p', 'reopen'], true)) {
                 $taskQuery->where('status', $status);
             }
 
@@ -53,6 +55,9 @@ class DashboardController extends Controller
                 ['label' => 'In progress', 'value' => (int) ($taskCounts['in_progress'] ?? 0), 'status' => 'in_progress'],
                 ['label' => 'Done', 'value' => (int) ($taskCounts['done'] ?? 0), 'status' => 'done'],
                 ['label' => 'Blocked', 'value' => (int) ($taskCounts['blocked'] ?? 0), 'status' => 'blocked'],
+                ['label' => 'Deployed S', 'value' => (int) ($taskCounts['deployed-s'] ?? 0), 'status' => 'deployed-s'],
+                ['label' => 'Deployed P', 'value' => (int) ($taskCounts['deployed-p'] ?? 0), 'status' => 'deployed-p'],
+                ['label' => 'Reopen', 'value' => (int) ($taskCounts['reopen'] ?? 0), 'status' => 'reopen'],
             ];
 
             $users = User::query()->orderBy('name')->get(['id', 'name']);
