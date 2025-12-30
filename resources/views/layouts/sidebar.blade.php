@@ -56,13 +56,19 @@
             'icon' => 'check2-square',
         ];
     }
+
+    $roleLabel = null;
+    if (auth()->check() && method_exists(auth()->user(), 'getRoleNames')) {
+        $roleLabel = auth()->user()->getRoleNames()->first();
+        $roleLabel = str()->title(str()->replace('-', ' ', $roleLabel));
+    }
 @endphp
 
 @once
     <style>
         .fin-sidebar {
             background: linear-gradient(180deg, #ffffff 0%, #f5f9fd 100%);
-            border-right: 1px solid #e2e8f0;
+            /* border-right: 1px solid #e2e8f0; */
         }
         .fin-sidebar .nav-title {
             letter-spacing: 0.2em;
@@ -120,8 +126,10 @@
 
 <div class="position-sticky pt-3 sidebar-sticky fin-sidebar">
     <div class="px-3 pb-3">
-        <p class="text-uppercase small fw-semibold mb-3 nav-title">Admin</p>
-        <div class="nav-card">
+        @if (!empty($roleLabel))
+        <p class="text-uppercase small fw-semibold mb-3 nav-title">{{ $roleLabel }}</p>
+        @endif
+        <div class="">
             @foreach ($links as $link)
                 <a href="{{ $link['href'] }}" class="list-group-item list-group-item-action d-flex align-items-center gap-3 fin-link @if($link['active']) active @endif">
                     <span class="icon"><i class="bi bi-{{ $link['icon'] }}"></i></span>

@@ -11,7 +11,6 @@
     <x-slot name="header">
         <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between w-100">
             <div>
-                <p class="text-uppercase text-muted small fw-semibold mb-1">Admin</p>
                 <h2 class="h4 mb-0">{{ __('Package Updates') }}</h2>
                 <small class="text-muted">Run controlled Composer updates and review audit logs.</small>
             </div>
