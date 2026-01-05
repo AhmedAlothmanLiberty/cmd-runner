@@ -164,10 +164,10 @@
                                     @endif
                                 </td>
                                 <td class="small text-muted">
-                                    {{ $automation->created_by ?? '—' }}
+                                    {{ $userNamesByEmail[$automation->created_by] ?? '—' }}
                                 </td>
                                 <td class="small text-muted">
-                                    {{ $automation->updated_by ?? '—' }}
+                                    {{ $userNamesByEmail[$automation->updated_by] ?? '—' }}
                                 </td>
                                 <td class="text-end text-nowrap">
                                     <div class="dropdown">

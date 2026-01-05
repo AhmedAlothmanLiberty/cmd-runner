@@ -6,6 +6,7 @@ use App\Http\Requests\StoreAutomationRequest;
 use App\Http\Requests\UpdateAutomationRequest;
 use App\Models\Automation;
 use App\Models\AutomationLog;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -36,12 +37,26 @@ class AutomationController extends Controller
             ->paginate(10)
             ->appends($request->query());
 
+        $userEmails = $automations->getCollection()
+            ->pluck('created_by')
+            ->merge($automations->getCollection()->pluck('updated_by'))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $userNamesByEmail = $userEmails->isEmpty()
+            ? []
+            : User::query()
+                ->whereIn('email', $userEmails)
+                ->pluck('name', 'email')
+                ->toArray();
+
         $filters = [
             'search' => $search,
             'status' => $status,
         ];
 
-        return view('admin.automations.index', compact('automations', 'filters'));
+        return view('admin.automations.index', compact('automations', 'filters', 'userNamesByEmail'));
     }
 
     public function create(): View
