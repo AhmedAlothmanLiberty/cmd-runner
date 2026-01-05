@@ -24,7 +24,13 @@ return Application::configure(basePath: dirname(__DIR__))
             \Cmd\Reports\Console\Commands\SyncFirstPaymentDate::class,
             \Cmd\Reports\Console\Commands\SyncSubmittedDate::class,
             \Cmd\Reports\Console\Commands\SyncTimeInProgram::class,
-            \Cmd\Reports\Console\Commands\SyncSubmittedDate::class,
+            \Cmd\Reports\Console\Commands\UpdateEPFRates::class,
+            \Cmd\Reports\Console\Commands\SyncVerifiedDebts::class,
+            \Cmd\Reports\Console\Commands\SyncSettlementData::class,
+            \Cmd\Reports\Console\Commands\SyncSettledDebtsData::class,
+            \Cmd\Reports\Console\Commands\SyncEnrollmentStatus::class,
+            \Cmd\Reports\Console\Commands\SyncEPFData::class,
+
 
 
         ], fn(string $c) => class_exists($c))),
