@@ -73,6 +73,7 @@
                         <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary text-white fw-semibold" style="width: 32px; height: 32px;">
                             {{ strtoupper(substr(Auth::user()->name, 0, 1)) }}
                         </span>
+
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li class="px-3 py-2">

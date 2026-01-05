@@ -6,7 +6,6 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <title>{{ config('app.name', 'Laravel') }}</title>
-
         <!-- Bootstrap 5 -->
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" integrity="sha384-tViUnnbYAV00FLIhhi3v/dWt3Jxw4gZQcNoSCxCIFNJVCx7/D55/wXsrNIRANwdD" crossorigin="anonymous">
@@ -18,6 +17,23 @@
             .sidebar-sticky {
                 position: sticky;
                 top: 1rem;
+            }
+            body.sidebar-collapsed #sidebarMenu {
+                flex: 0 0 72px;
+                max-width: 72px;
+                position: fixed;
+                top: 56px;
+                left: 0;
+                height: calc(100vh - 56px);
+                z-index: 1030;
+            }
+            body.sidebar-collapsed #sidebarMenu .fin-sidebar {
+                padding-left: 0.25rem;
+                padding-right: 0.25rem;
+            }
+            body.sidebar-collapsed main {
+                flex: 0 0 100%;
+                max-width: 95%;
             }
             :root {
                 --bs-primary: #329ad6;
@@ -82,7 +98,7 @@
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="bg-light">
+    <body class="bg-light sidebar-collapsed">
         @php
             $routeName = \Illuminate\Support\Facades\Route::currentRouteName();
             $pageText = $routeName
@@ -104,7 +120,7 @@
             <div class="container-fluid">
                 <div class="row">
                     @if (auth()->check())
-                        <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-white sidebar border-end">
+                        <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-white sidebar border-end p-0">
                             @include('layouts.sidebar')
                         </nav>
                     @endif

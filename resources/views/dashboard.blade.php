@@ -272,22 +272,6 @@
             </div>
         </div>
     @else
-        <div class="dash-hero p-4 p-lg-5 mb-4 shadow-sm">
-            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
-                <div>
-                    <div class="dash-chip mb-2">
-                        <i class="bi bi-activity"></i> Operations Pulse
-                    </div>
-                    <h1 class="h3 mb-1">Welcome back, {{ auth()->user()->name }}</h1>
-                    <p class="mb-0 text-white-50">Live view of automations and package updates.</p>
-                </div>
-                <div class="d-flex flex-wrap gap-2">
-                    <span class="dash-chip"><i class="bi bi-shield-check"></i> All systems</span>
-                    <span class="dash-chip"><i class="bi bi-clock"></i> {{ now()->format('M d, H:i') }}</span>
-                </div>
-            </div>
-        </div>
-
         <div class="row g-3 mb-4">
             @foreach ($highlights as $item)
                 <div class="col-12 col-sm-6 col-xl-3">

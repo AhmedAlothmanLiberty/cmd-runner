@@ -1,6 +1,16 @@
 @php
     $links = [];
 
+    if (auth()->check()) {
+        $links[] = [
+            'label' => 'Dashboard',
+            'description' => 'Overview',
+            'href' => route('dashboard'),
+            'active' => request()->routeIs('dashboard'),
+            'icon' => 'speedometer2',
+        ];
+    }
+
     if (auth()->user()->hasAnyRole(['admin', 'super-admin'])) {
         $links[] = [
             'label' => 'User Management',
@@ -84,8 +94,9 @@
         .fin-sidebar .fin-link {
             border: 0;
             border-radius: 12px;
-            padding: 0.75rem 0.85rem;
+            padding: 1px;
             margin-bottom: 0.35rem;
+            position: relative;
             transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
         }
         .fin-sidebar .fin-link:last-child {
@@ -121,24 +132,84 @@
         .fin-sidebar .fin-link .desc {
             color: #64748b;
         }
+        body.sidebar-collapsed .fin-sidebar .nav-title,
+        body.sidebar-collapsed .fin-sidebar .text-muted {
+            display: none;
+        }
+        body.sidebar-collapsed .fin-sidebar .fin-link {
+            justify-content: center;
+        }
+        body.sidebar-collapsed .fin-sidebar .fin-link .label,
+        body.sidebar-collapsed .fin-sidebar .fin-link .desc,
+        body.sidebar-collapsed .fin-sidebar .fin-link .flex-grow-1 {
+            display: none;
+        }
+        body.sidebar-collapsed .fin-sidebar .fin-link::after {
+            content: attr(data-label);
+            position: absolute;
+            left: 64px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #0f172a;
+            color: #fff;
+            padding: 0.35rem 0.6rem;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+            transition: opacity 0.12s ease;
+        }
+        body.sidebar-collapsed .fin-sidebar .fin-link:hover::after {
+            opacity: 1;
+        }
     </style>
 @endonce
 
 <div class="position-sticky pt-3 sidebar-sticky fin-sidebar">
     <div class="px-3 pb-3">
-        @if (!empty($roleLabel))
-        <p class="text-uppercase small fw-semibold mb-3 nav-title">{{ $roleLabel }}</p>
-        @endif
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <p class="text-uppercase small fw-semibold mb-0 nav-title">Admin</p>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-sidebar-toggle aria-pressed="false" aria-label="Toggle sidebar">
+                <i class="bi bi-layout-sidebar"></i>
+            </button>
+        </div>
+        {{-- @if (!empty($roleLabel))
+            <div class="text-muted small mb-3">Role: {{ $roleLabel }}</div>
+        @endif --}}
         <div class="">
             @foreach ($links as $link)
-                <a href="{{ $link['href'] }}" class="list-group-item list-group-item-action d-flex align-items-center gap-3 fin-link @if($link['active']) active @endif">
+                <a href="{{ $link['href'] }}" data-label="{{ $link['label'] }}" title="{{ $link['label'] }}" class="list-group-item list-group-item-action d-flex align-items-center gap-3 fin-link @if($link['active']) active @endif">
                     <span class="icon"><i class="bi bi-{{ $link['icon'] }}"></i></span>
                     <div class="flex-grow-1">
                         <div class="label">{{ $link['label'] }}</div>
-                        <small class="desc">{{ $link['description'] }}</small>
+                        {{-- <small class="desc">{{ $link['description'] }}</small> --}}
                     </div>
                 </a>
             @endforeach
         </div>
     </div>
 </div>
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebarToggle = document.querySelector('[data-sidebar-toggle]');
+            if (!sidebarToggle) return;
+
+            const storageKey = 'sidebar-collapsed';
+            const stored = localStorage.getItem(storageKey);
+            const initialCollapsed = stored === null ? true : stored === 'true';
+            document.body.classList.toggle('sidebar-collapsed', initialCollapsed);
+            sidebarToggle.setAttribute('aria-pressed', initialCollapsed ? 'true' : 'false');
+
+            sidebarToggle.addEventListener('click', () => {
+                const isCollapsed = !document.body.classList.contains('sidebar-collapsed');
+                document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+                sidebarToggle.setAttribute('aria-pressed', isCollapsed ? 'true' : 'false');
+                localStorage.setItem(storageKey, isCollapsed ? 'true' : 'false');
+            });
+        });
+    </script>
+@endpush
