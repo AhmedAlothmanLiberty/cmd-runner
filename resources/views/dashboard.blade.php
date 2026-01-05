@@ -469,21 +469,21 @@
 
                 <div class="card shadow-sm border-0 mb-3">
                     <div class="card-header bg-white">
-                        <h5 class="mb-0">Last Login</h5>
-                        <small class="text-muted">Most recent logins.</small>
+                        <h5 class="mb-0">Last Online</h5>
+                        <small class="text-muted">Most recent activity.</small>
                     </div>
                     <div class="list-group list-group-flush">
-                        @forelse ($lastLogins as $user)
+                        @forelse ($lastOnlineUsers as $user)
                             <div class="list-group-item d-flex justify-content-between align-items-start">
                                 <div>
                                     <p class="mb-0 fw-semibold">{{ $user->name }}</p>
                                     <small class="text-muted">{{ $user->email }}</small>
                                 </div>
-                                <small class="text-muted">{{ $user->last_login_at?->diffForHumans() ?? '—' }}</small>
+                                <small class="text-muted">{{ $user->last_seen_at?->diffForHumans() ?? '—' }}</small>
                             </div>
                         @empty
                             <div class="list-group-item text-center text-muted py-4">
-                                No logins yet.
+                                No recent activity yet.
                             </div>
                         @endforelse
                     </div>

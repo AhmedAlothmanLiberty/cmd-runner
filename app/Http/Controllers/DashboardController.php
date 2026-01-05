@@ -103,11 +103,11 @@ class DashboardController extends Controller
             ->limit(8)
             ->get(['id', 'name', 'email', 'last_seen_at', 'last_login_at']);
 
-        $lastLogins = User::query()
-            ->whereNotNull('last_login_at')
-            ->orderByDesc('last_login_at')
+        $lastOnlineUsers = User::query()
+            ->whereNotNull('last_seen_at')
+            ->orderByDesc('last_seen_at')
             ->limit(8)
-            ->get(['id', 'name', 'email', 'last_login_at']);
+            ->get(['id', 'name', 'email', 'last_seen_at']);
 
         $latestUserUpdates = User::query()
             ->orderByDesc('updated_at')
@@ -169,7 +169,7 @@ class DashboardController extends Controller
             'lastPackageUpdate' => $lastPackageUpdate,
             'latestTasks' => $latestTasks,
             'onlineUsers' => $onlineUsers,
-            'lastLogins' => $lastLogins,
+            'lastOnlineUsers' => $lastOnlineUsers,
             'latestUserUpdates' => $latestUserUpdates,
         ]);
     }
