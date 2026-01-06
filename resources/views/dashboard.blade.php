@@ -99,6 +99,7 @@
             .task-badge-progress { background: #e0f2fe; color: #0369a1; }
             .task-badge-done { background: #dcfce7; color: #166534; }
             .task-badge-blocked { background: #fee2e2; color: #b91c1c; }
+            .task-badge-on-hold { background: #fef3c7; color: #92400e; }
             .task-badge-deployed-s { background: #e0f2fe; color: #0c4a6e; }
             .task-badge-deployed-p { background: #e2e8f0; color: #1e293b; }
             .task-badge-reopen { background: #fef3c7; color: #92400e; }
@@ -174,6 +175,7 @@
                             <option value="in_progress" @selected(($filters['status'] ?? '') === 'in_progress')>In progress</option>
                             <option value="done" @selected(($filters['status'] ?? '') === 'done')>Done</option>
                             <option value="blocked" @selected(($filters['status'] ?? '') === 'blocked')>Blocked</option>
+                            <option value="on_hold" @selected(($filters['status'] ?? '') === 'on_hold')>On hold</option>
                             <option value="deployed-s" @selected(($filters['status'] ?? '') === 'deployed-s')>Deployed S</option>
                             <option value="deployed-p" @selected(($filters['status'] ?? '') === 'deployed-p')>Deployed P</option>
                             <option value="reopen" @selected(($filters['status'] ?? '') === 'reopen')>Reopen</option>
@@ -208,6 +210,7 @@
                                     'in_progress' => 'task-badge-progress',
                                     'done' => 'task-badge-done',
                                     'blocked' => 'task-badge-blocked',
+                                    'on_hold' => 'task-badge-on-hold',
                                     'deployed-s' => 'task-badge-deployed-s',
                                     'deployed-p' => 'task-badge-deployed-p',
                                     'reopen' => 'task-badge-reopen',
@@ -325,6 +328,7 @@
                                     'in_progress' => 'task-badge-progress',
                                     'done' => 'task-badge-done',
                                     'blocked' => 'task-badge-blocked',
+                                    'on_hold' => 'task-badge-on-hold',
                                     default => 'task-badge-todo',
                                 };
                                 $priorityClass = match ($task->priority) {

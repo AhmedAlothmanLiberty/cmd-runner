@@ -38,7 +38,7 @@ class TaskController extends Controller
             });
         }
 
-        if (in_array($status, ['todo', 'in_progress', 'done', 'blocked', 'deployed-s', 'deployed-p', 'reopen'], true)) {
+        if (in_array($status, ['todo', 'in_progress', 'done', 'blocked', 'on_hold', 'deployed-s', 'deployed-p', 'reopen'], true)) {
             $query->where('status', $status);
         }
 
@@ -162,7 +162,7 @@ class TaskController extends Controller
         $this->authorize('update', $task);
 
         $validated = $request->validate([
-            'status' => ['required', 'in:todo,in_progress,done,blocked,deployed-s,deployed-p,reopen'],
+            'status' => ['required', 'in:todo,in_progress,done,blocked,on_hold,deployed-s,deployed-p,reopen'],
         ]);
 
         $task->status = $validated['status'];

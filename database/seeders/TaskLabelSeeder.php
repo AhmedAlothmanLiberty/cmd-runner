@@ -18,6 +18,7 @@ class TaskLabelSeeder extends Seeder
             ['name' => 'cron', 'color' => '#F59E0B'],
             ['name' => 'enhance', 'color' => '#22C55E'],
             ['name' => 'feature', 'color' => '#6366F1'],
+            ['name' => 'onhold', 'color' => '#F97316'],
             ['name' => 'task', 'color' => '#64748B'],
         ];
 

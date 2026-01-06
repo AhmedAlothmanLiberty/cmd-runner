@@ -26,11 +26,11 @@
                 display: inline-flex;
                 align-items: center;
                 gap: 0.4rem;
-                padding: 0.25rem 0.55rem;
+                padding: 0.1rem 0.55rem;
                 border-radius: 999px;
                 border: 1px solid #e5e7eb;
                 background: #f8fafc;
-                font-size: 0.78rem;
+                font-size: 0.55rem;
                 color: #334155;
                 letter-spacing: 0.02em;
             }
@@ -66,6 +66,10 @@
             .status-cell--blocked .status-text {
                 background: #fecaca;
                 color: #b91c1c;
+            }
+            .status-cell--on_hold .status-text {
+                background: #fef3c7;
+                color: #92400e;
             }
             .status-cell--deployed-s .status-text {
                 background: #e0f2fe;
@@ -136,6 +140,7 @@
                             <option value="in_progress" @selected(($filters['status'] ?? '') === 'in_progress')>In progress</option>
                             <option value="done" @selected(($filters['status'] ?? '') === 'done')>Done</option>
                             <option value="blocked" @selected(($filters['status'] ?? '') === 'blocked')>Blocked</option>
+                            <option value="on_hold" @selected(($filters['status'] ?? '') === 'on_hold')>On hold</option>
                         </select>
                     </div>
                     <div class="col-6 col-md-3 col-lg-2">
@@ -204,11 +209,11 @@
                                         <a class="title text-decoration-none" href="{{ route('admin.tasks.show', $task) }}">
                                             {{ $task->title }}
                                         </a>
-                                        @if ($task->description)
+                                        {{-- @if ($task->description)
                                             <span class="subtext">{{ \Illuminate\Support\Str::limit($task->description, 80) }}</span>
-                                        @endif
+                                        @endif --}}
                                         @if ($task->labels->isNotEmpty())
-                                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                            <div class="d-flex flex-wrap gap-1">
                                                 @foreach ($task->labels as $label)
                                                     @php
                                                         $labelColor = $label->color ?? '#e2e8f0';
