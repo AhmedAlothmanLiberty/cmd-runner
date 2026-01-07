@@ -6,6 +6,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AutomationController;
 use App\Http\Controllers\AutomationRunController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\EasyEngineUploadController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -63,5 +64,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
+
+Route::middleware(['web', 'internal.basic'])
+    ->prefix('internal/easyengine')
+    ->group(function () {
+        Route::get('/upload', [EasyEngineUploadController::class, 'form'])->name('ee.upload.form');
+        Route::post('/upload', [EasyEngineUploadController::class, 'upload'])->name('ee.upload');
+    });
 
 require __DIR__ . '/auth.php';
