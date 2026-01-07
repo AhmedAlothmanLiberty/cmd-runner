@@ -62,8 +62,18 @@
             'label' => 'Tasks',
             'description' => 'Track work items',
             'href' => route('admin.tasks.index'),
-            'active' => request()->routeIs('admin.tasks.*'),
+            'active' => request()->routeIs('admin.tasks.*') && ! request()->routeIs('admin.tasks.backlog'),
             'icon' => 'check2-square',
+        ];
+    }
+
+    if (auth()->check() && auth()->user()->hasAnyRole(['admin', 'super-admin'])) {
+        $links[] = [
+            'label' => 'Backlog',
+            'description' => 'On hold and deployed tasks',
+            'href' => route('admin.tasks.backlog'),
+            'active' => request()->routeIs('admin.tasks.backlog'),
+            'icon' => 'inbox-fill',
         ];
     }
 

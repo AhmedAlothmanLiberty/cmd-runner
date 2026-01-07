@@ -117,14 +117,16 @@
                 <div class="ops-panel p-4">
                     <div class="ops-section-title mb-3">Comments</div>
                     @auth
-                        <form action="{{ route('admin.tasks.comments.store', $task) }}" method="POST" class="mb-3">
-                            @csrf
-                            <div class="mb-2">
-                                <textarea name="comment" rows="3" class="form-control" placeholder="Add a comment..."></textarea>
-                                @error('comment')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
-                            </div>
-                            <button type="submit" class="btn btn-primary btn-sm">Add comment</button>
-                        </form>
+                        @if (! $task->isRestrictedStatus() || auth()->user()?->hasAnyRole(['admin', 'super-admin']))
+                            <form action="{{ route('admin.tasks.comments.store', $task) }}" method="POST" class="mb-3">
+                                @csrf
+                                <div class="mb-2">
+                                    <textarea name="comment" rows="3" class="form-control" placeholder="Add a comment..."></textarea>
+                                    @error('comment')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm">Add comment</button>
+                            </form>
+                        @endif
                     @endauth
 
                     @if ($task->comments->isEmpty())

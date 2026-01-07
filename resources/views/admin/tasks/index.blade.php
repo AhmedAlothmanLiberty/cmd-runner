@@ -105,16 +105,27 @@
     <x-slot name="header">
         <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between w-100">
             <div>
-                <h2 class="h4 mb-0">Tasks</h2>
-                <small class="text-muted">Track work items and keep them moving.</small>
+                <h2 class="h4 mb-0">{{ $pageTitle ?? 'Tasks' }}</h2>
+                <small class="text-muted">{{ $pageSubtitle ?? 'Track work items and keep them moving.' }}</small>
             </div>
-            @can('manage-tasks')
-                <div class="mt-3 mt-md-0">
+            <div class="mt-3 mt-md-0 d-flex gap-2">
+                @if (auth()->user()?->hasAnyRole(['admin', 'super-admin']))
+                    @if (! ($isBacklog ?? false))
+                        <a href="{{ route('admin.tasks.backlog') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-inbox me-1"></i> Backlog
+                        </a>
+                    @else
+                        <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-list-check me-1"></i> All Tasks
+                        </a>
+                    @endif
+                @endif
+                @can('manage-tasks')
                     <a href="{{ route('admin.tasks.create') }}" class="btn btn-primary">
                         <i class="bi bi-plus-lg me-1"></i> New Task
                     </a>
-                </div>
-            @endcan
+                @endcan
+            </div>
         </div>
     </x-slot>
 
@@ -136,11 +147,10 @@
                         <label class="form-label mb-1">Status</label>
                         <select name="status" class="form-select">
                             <option value="">All</option>
-                            <option value="todo" @selected(($filters['status'] ?? '') === 'todo')>To do</option>
-                            <option value="in_progress" @selected(($filters['status'] ?? '') === 'in_progress')>In progress</option>
-                            <option value="done" @selected(($filters['status'] ?? '') === 'done')>Done</option>
-                            <option value="blocked" @selected(($filters['status'] ?? '') === 'blocked')>Blocked</option>
-                            <option value="on_hold" @selected(($filters['status'] ?? '') === 'on_hold')>On hold</option>
+                            @php $statusOptions = $statusOptions ?? \App\Models\Task::statusLabels(); @endphp
+                            @foreach ($statusOptions as $value => $label)
+                                <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
+                            @endforeach
                         </select>
                     </div>
                     <div class="col-6 col-md-3 col-lg-2">

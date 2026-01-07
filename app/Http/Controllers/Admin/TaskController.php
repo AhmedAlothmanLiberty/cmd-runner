@@ -13,18 +13,17 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class TaskController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = Task::query()->with(['assignedTo', 'createdBy', 'updatedBy', 'labels']);
         $user = $request->user();
-
-        if (! $user?->hasRole('super-admin')) {
-            $query->whereNotIn('status', ['deployed-s', 'deployed-p']);
-        }
+        $query = Task::query()
+            ->with(['assignedTo', 'createdBy', 'updatedBy', 'labels'])
+            ->visibleTo($user);
 
         $search = trim((string) $request->input('search', ''));
         $status = $request->input('status');
@@ -38,7 +37,7 @@ class TaskController extends Controller
             });
         }
 
-        if (in_array($status, ['todo', 'in_progress', 'done', 'blocked', 'on_hold', 'deployed-s', 'deployed-p', 'reopen'], true)) {
+        if (in_array($status, Task::allowedStatusesFor($user), true)) {
             $query->where('status', $status);
         }
 
@@ -63,8 +62,72 @@ class TaskController extends Controller
         ];
 
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
+        $statusOptions = Task::visibleStatusLabels($user);
 
-        return view('admin.tasks.index', compact('tasks', 'filters', 'users'));
+        return view('admin.tasks.index', compact('tasks', 'filters', 'users', 'statusOptions'));
+    }
+
+    public function backlog(Request $request): View
+    {
+        $user = $request->user();
+        if (! Task::canManageRestricted($user)) {
+            abort(403);
+        }
+
+        $query = Task::query()
+            ->with(['assignedTo', 'createdBy', 'updatedBy', 'labels'])
+            ->backlog();
+
+        $search = trim((string) $request->input('search', ''));
+        $status = $request->input('status');
+        $priority = $request->input('priority');
+        $assignedTo = $request->input('assigned_to');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search): void {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        if (in_array($status, Task::restrictedStatuses(), true)) {
+            $query->where('status', $status);
+        }
+
+        if (in_array($priority, ['low', 'medium', 'high'], true)) {
+            $query->where('priority', $priority);
+        }
+
+        if (! empty($assignedTo)) {
+            $query->where('assigned_to', $assignedTo);
+        }
+
+        $tasks = $query
+            ->orderByDesc('updated_at')
+            ->paginate(15)
+            ->appends($request->query());
+
+        $filters = [
+            'search' => $search,
+            'status' => $status,
+            'priority' => $priority,
+            'assigned_to' => $assignedTo,
+        ];
+
+        $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
+        $statusOptions = Task::backlogStatusLabels();
+
+        return view('admin.tasks.index', [
+            'tasks' => $tasks,
+            'filters' => $filters,
+            'users' => $users,
+            'statusOptions' => $statusOptions,
+            'pageTitle' => 'Backlog',
+            'pageSubtitle' => 'On hold or deployed tasks.',
+            'backLink' => route('admin.tasks.index'),
+            'backLinkLabel' => 'All tasks',
+            'isBacklog' => true,
+        ]);
     }
 
     public function create(): View
@@ -73,7 +136,9 @@ class TaskController extends Controller
 
         $labels = TaskLabel::query()->orderBy('name')->get();
 
-        return view('admin.tasks.create', compact('users', 'labels'));
+        $statusOptions = Task::visibleStatusLabels(request()->user());
+
+        return view('admin.tasks.create', compact('users', 'labels', 'statusOptions'));
     }
 
     public function show(Task $task): View
@@ -111,7 +176,9 @@ class TaskController extends Controller
 
         $labels = TaskLabel::query()->orderBy('name')->get();
 
-        return view('admin.tasks.edit', compact('task', 'users', 'labels'));
+        $statusOptions = Task::visibleStatusLabels(request()->user());
+
+        return view('admin.tasks.edit', compact('task', 'users', 'labels', 'statusOptions'));
     }
 
     public function update(UpdateTaskRequest $request, Task $task): RedirectResponse
@@ -140,6 +207,9 @@ class TaskController extends Controller
     public function addComment(Request $request, Task $task): RedirectResponse
     {
         $this->authorize('view', $task);
+        if ($task->isRestrictedStatus() && ! Task::canManageRestricted($request->user())) {
+            abort(403);
+        }
 
         $data = $request->validate([
             'comment' => ['required', 'string'],
@@ -162,7 +232,7 @@ class TaskController extends Controller
         $this->authorize('update', $task);
 
         $validated = $request->validate([
-            'status' => ['required', 'in:todo,in_progress,done,blocked,on_hold,deployed-s,deployed-p,reopen'],
+            'status' => ['required', Rule::in(Task::allowedStatusesFor($request->user()))],
         ]);
 
         $task->status = $validated['status'];

@@ -15,7 +15,7 @@ class DashboardController extends Controller
     public function __invoke(Request $request): View
     {
         $user = $request->user();
-        $isSuperAdmin = $user?->hasRole('super-admin') ?? false;
+        $isSuperAdmin = $user?->hasAnyRole(['admin', 'super-admin']) ?? false;
 
         if (! $isSuperAdmin) {
             $status = $request->input('status');
@@ -25,9 +25,9 @@ class DashboardController extends Controller
                 $status = 'in_progress';
             }
 
-            $taskQuery = Task::query()->with(['assignedTo', 'labels']);
-
-            $taskQuery->whereNotIn('status', ['deployed-s', 'deployed-p']);
+            $taskQuery = Task::query()
+                ->with(['assignedTo', 'labels'])
+                ->visibleTo($user);
 
             if (! empty($assignedTo)) {
                 $taskQuery->where('assigned_to', $assignedTo);
@@ -35,7 +35,7 @@ class DashboardController extends Controller
                 $taskQuery->whereNotNull('assigned_to');
             }
 
-            if (in_array($status, ['todo', 'in_progress', 'done', 'blocked', 'on_hold', 'deployed-s', 'deployed-p', 'reopen'], true)) {
+            if (in_array($status, Task::allowedStatusesFor($user), true)) {
                 $taskQuery->where('status', $status);
             }
 
@@ -45,21 +45,21 @@ class DashboardController extends Controller
                 ->appends($request->query());
 
             $taskCounts = Task::query()
+                ->visibleTo($user)
                 ->where('assigned_to', $user?->id)
                 ->selectRaw("status, COUNT(*) as total")
                 ->groupBy('status')
                 ->pluck('total', 'status');
 
-            $taskWidgets = [
-                ['label' => 'To do', 'value' => (int) ($taskCounts['todo'] ?? 0), 'status' => 'todo'],
-                ['label' => 'In progress', 'value' => (int) ($taskCounts['in_progress'] ?? 0), 'status' => 'in_progress'],
-                ['label' => 'Done', 'value' => (int) ($taskCounts['done'] ?? 0), 'status' => 'done'],
-                ['label' => 'Blocked', 'value' => (int) ($taskCounts['blocked'] ?? 0), 'status' => 'blocked'],
-                ['label' => 'On hold', 'value' => (int) ($taskCounts['on_hold'] ?? 0), 'status' => 'on_hold'],
-                ['label' => 'Deployed S', 'value' => (int) ($taskCounts['deployed-s'] ?? 0), 'status' => 'deployed-s'],
-                ['label' => 'Deployed P', 'value' => (int) ($taskCounts['deployed-p'] ?? 0), 'status' => 'deployed-p'],
-                ['label' => 'Reopen', 'value' => (int) ($taskCounts['reopen'] ?? 0), 'status' => 'reopen'],
-            ];
+            $taskWidgets = [];
+            $statusLabels = Task::visibleStatusLabels($user);
+            foreach ($statusLabels as $statusKey => $label) {
+                $taskWidgets[] = [
+                    'label' => $label,
+                    'value' => (int) ($taskCounts[$statusKey] ?? 0),
+                    'status' => $statusKey,
+                ];
+            }
 
             $users = User::query()->orderBy('name')->get(['id', 'name']);
             $filters = [
@@ -73,6 +73,7 @@ class DashboardController extends Controller
                 'tasks' => $tasks,
                 'users' => $users,
                 'filters' => $filters,
+                'statusOptions' => $statusLabels,
             ]);
         }
 

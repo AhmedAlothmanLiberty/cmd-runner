@@ -30,15 +30,13 @@
     <div class="col-12 col-md-4">
         <label class="form-label" for="status">Status</label>
         <select name="status" id="status" class="form-select @error('status') is-invalid @enderror">
-            @php $statusValue = old('status', $task->status ?? 'todo'); @endphp
-            <option value="todo" @selected($statusValue === 'todo')>To do</option>
-            <option value="in_progress" @selected($statusValue === 'in_progress')>In progress</option>
-            <option value="done" @selected($statusValue === 'done')>Done</option>
-            <option value="blocked" @selected($statusValue === 'blocked')>Blocked</option>
-            <option value="on_hold" @selected($statusValue === 'on_hold')>On hold</option>
-            <option value="deployed-s" @selected($statusValue === 'deployed-s')>Deployed S</option>
-            <option value="deployed-p" @selected($statusValue === 'deployed-p')>Deployed P</option>
-            <option value="reopen" @selected($statusValue === 'reopen')>Reopen</option>
+            @php
+                $statusValue = old('status', $task->status ?? \App\Models\Task::STATUS_TODO);
+                $statusOptions = $statusOptions ?? \App\Models\Task::statusLabels();
+            @endphp
+            @foreach ($statusOptions as $value => $label)
+                <option value="{{ $value }}" @selected($statusValue === $value)>{{ $label }}</option>
+            @endforeach
         </select>
         @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>

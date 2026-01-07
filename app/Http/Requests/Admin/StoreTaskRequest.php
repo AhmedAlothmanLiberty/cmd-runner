@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Models\Task;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreTaskRequest extends FormRequest
 {
@@ -13,10 +15,12 @@ class StoreTaskRequest extends FormRequest
 
     public function rules(): array
     {
+        $allowedStatuses = Task::allowedStatusesFor($this->user());
+
         return [
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'status' => ['required', 'in:todo,in_progress,done,blocked,on_hold,deployed-s,deployed-p,reopen'],
+            'status' => ['required', Rule::in($allowedStatuses)],
             'priority' => ['required', 'in:low,medium,high'],
             'due_at' => ['nullable', 'date'],
             'assigned_to' => ['nullable', 'exists:users,id'],

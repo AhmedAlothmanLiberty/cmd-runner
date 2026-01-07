@@ -171,14 +171,10 @@
                         <label class="form-label mb-1">Status</label>
                         <select name="status" class="form-select">
                             <option value="">All</option>
-                            <option value="todo" @selected(($filters['status'] ?? '') === 'todo')>To do</option>
-                            <option value="in_progress" @selected(($filters['status'] ?? '') === 'in_progress')>In progress</option>
-                            <option value="done" @selected(($filters['status'] ?? '') === 'done')>Done</option>
-                            <option value="blocked" @selected(($filters['status'] ?? '') === 'blocked')>Blocked</option>
-                            <option value="on_hold" @selected(($filters['status'] ?? '') === 'on_hold')>On hold</option>
-                            <option value="deployed-s" @selected(($filters['status'] ?? '') === 'deployed-s')>Deployed S</option>
-                            <option value="deployed-p" @selected(($filters['status'] ?? '') === 'deployed-p')>Deployed P</option>
-                            <option value="reopen" @selected(($filters['status'] ?? '') === 'reopen')>Reopen</option>
+                            @php $statusOptions = $statusOptions ?? \App\Models\Task::statusLabels(); @endphp
+                            @foreach ($statusOptions as $value => $label)
+                                <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
+                            @endforeach
                         </select>
                     </div>
                     <div class="col-12 col-md-auto d-flex gap-2">
@@ -329,6 +325,9 @@
                                     'done' => 'task-badge-done',
                                     'blocked' => 'task-badge-blocked',
                                     'on_hold' => 'task-badge-on-hold',
+                                    'deployed-s' => 'task-badge-deployed-s',
+                                    'deployed-p' => 'task-badge-deployed-p',
+                                    'reopen' => 'task-badge-reopen',
                                     default => 'task-badge-todo',
                                 };
                                 $priorityClass = match ($task->priority) {

@@ -14,8 +14,12 @@ class TaskPolicy
 
     public function update(User $user, Task $task): bool
     {
-        if ($user->hasRole('super-admin')) {
+        if ($user->hasAnyRole(['admin', 'super-admin'])) {
             return true;
+        }
+
+        if ($task->isRestrictedStatus()) {
+            return false;
         }
 
         return (int) $task->assigned_to === (int) $user->id;
@@ -23,8 +27,12 @@ class TaskPolicy
 
     public function delete(User $user, Task $task): bool
     {
-        if ($user->hasRole('super-admin')) {
+        if ($user->hasAnyRole(['admin', 'super-admin'])) {
             return true;
+        }
+
+        if ($task->isRestrictedStatus()) {
+            return false;
         }
 
         return (int) $task->assigned_to === (int) $user->id;
