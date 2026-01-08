@@ -94,8 +94,8 @@ class DashboardController extends Controller
 
         $latestTasks = Task::query()
             ->with(['assignedTo', 'labels'])
-            ->latest()
-            ->limit(8)
+            ->latest('updated_at')
+            ->limit(3)
             ->get();
 
         $onlineUsers = User::query()

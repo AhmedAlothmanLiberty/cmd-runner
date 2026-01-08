@@ -292,7 +292,7 @@
             <div class="card-header bg-white d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
                 <div>
                     <h5 class="mb-0">Tasks</h5>
-                    <small class="text-muted">Latest tasks across the team.</small>
+                    <small class="text-muted">Latest 3 updated tasks across the team.</small>
                 </div>
                 <div class="d-flex gap-2">
                     @can('manage-tasks')
@@ -301,7 +301,7 @@
                         </a>
                     @endcan
                     <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary btn-sm">
-                        View all
+                        See more
                     </a>
                 </div>
             </div>
@@ -497,7 +497,7 @@
                         <h5 class="mb-0">Latest Updates</h5>
                         <small class="text-muted">Recent user profile changes.</small>
                     </div>
-                    <div class="list-group list-group-flush">
+                    {{-- <div class="list-group list-group-flush">
                         @forelse ($latestUserUpdates as $user)
                             <div class="list-group-item d-flex justify-content-between align-items-start">
                                 <div>
@@ -511,7 +511,7 @@
                                 No updates yet.
                             </div>
                         @endforelse
-                    </div>
+                    </div> --}}
                 </div>
 
                 <div class="card shadow-sm border-0 mb-3">
@@ -544,14 +544,14 @@
                 </div>
 
                 <div class="card shadow-sm border-0">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    {{-- <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <div>
                             <h5 class="mb-0">Your Profile</h5>
                             <small class="text-muted">Manage your account.</small>
                         </div>
                         <a href="{{ route('profile.edit') }}" class="btn btn-sm btn-primary">Edit</a>
-                    </div>
-                    <div class="card-body">
+                    </div> --}}
+                    {{-- <div class="card-body">
                         <div class="mb-3">
                             <p class="text-muted small mb-1">Name</p>
                             <p class="mb-0 fw-semibold">{{ auth()->user()->name }}</p>
@@ -567,7 +567,7 @@
                                 {{ $roleName ? \Illuminate\Support\Str::headline($roleName) : '—' }}
                             </p>
                         </div>
-                    </div>
+                    </div> --}}
                 </div>
             </div>
         </div>
