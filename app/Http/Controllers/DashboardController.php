@@ -22,6 +22,11 @@ class DashboardController extends Controller
             $status = $request->input('status');
             $assignedTo = $request->input('assigned_to');
             $categoryId = $request->input('category_id');
+            $perPage = $request->input('per_page', '10');
+            $perPageOptions = ['10', '15', '25', '50', 'all'];
+            if (! in_array((string) $perPage, $perPageOptions, true)) {
+                $perPage = '10';
+            }
 
             if ($status === null || $status === '') {
                 $status = 'in_progress';
@@ -47,9 +52,10 @@ class DashboardController extends Controller
                 $taskQuery->where('status', $status);
             }
 
+            $perPageValue = $perPage === 'all' ? max(1, (int) $taskQuery->count()) : (int) $perPage;
             $tasks = $taskQuery
                 ->orderByDesc('updated_at')
-                ->paginate(10)
+                ->paginate($perPageValue)
                 ->appends($request->query());
 
             $taskCounts = Task::query()
@@ -75,6 +81,7 @@ class DashboardController extends Controller
                 'status' => $status,
                 'assigned_to' => $assignedTo,
                 'category_id' => $categoryId,
+                'per_page' => (string) $perPage,
             ];
 
             return view('dashboard', [
@@ -84,6 +91,7 @@ class DashboardController extends Controller
                 'users' => $users,
                 'categories' => $categories,
                 'filters' => $filters,
+                'perPageOptions' => $perPageOptions,
                 'statusOptions' => $statusLabels,
             ]);
         }

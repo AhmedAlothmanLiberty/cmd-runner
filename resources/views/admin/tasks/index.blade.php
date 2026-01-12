@@ -177,6 +177,16 @@
                             <option value="high" @selected(($filters['priority'] ?? '') === 'high')>High</option>
                         </select>
                     </div>
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label mb-1">Per page</label>
+                        <select name="per_page" class="form-select">
+                            @foreach ($perPageOptions ?? ['15', '25', '50', 'all'] as $option)
+                                <option value="{{ $option }}" @selected((string) ($filters['per_page'] ?? '15') === (string) $option)>
+                                    {{ $option === 'all' ? 'All' : $option }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="col-12 col-md-4 col-lg-2">
                         <label class="form-label mb-1">Assigned to</label>
                         <select name="assigned_to" class="form-select">
