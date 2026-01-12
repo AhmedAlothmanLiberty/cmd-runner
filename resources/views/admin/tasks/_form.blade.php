@@ -1,8 +1,16 @@
 @php
     $task = $task ?? null;
+    $returnFilters = request()->query();
 @endphp
 
 <div class="row g-3">
+    <input type="hidden" name="return_filters[search]" value="{{ $returnFilters['search'] ?? '' }}">
+    <input type="hidden" name="return_filters[status]" value="{{ $returnFilters['status'] ?? '' }}">
+    <input type="hidden" name="return_filters[priority]" value="{{ $returnFilters['priority'] ?? '' }}">
+    <input type="hidden" name="return_filters[assigned_to]" value="{{ $returnFilters['assigned_to'] ?? '' }}">
+    <input type="hidden" name="return_filters[category_id]" value="{{ $returnFilters['category_id'] ?? '' }}">
+    <input type="hidden" name="return_filters[per_page]" value="{{ $returnFilters['per_page'] ?? '' }}">
+
     <div class="col-12">
         <label class="form-label" for="title">Title</label>
         <input
