@@ -2,9 +2,10 @@
     @once
         <style>
             .dash-hero {
-                background: radial-gradient(circle at 20% 20%, #0099ff, #0d6efd 45%), linear-gradient(135deg, #0d6efd 0%, #6f42c1 70%);
-                color: #fff;
-                border-radius: 16px;
+                background: #f8f9fa;
+                color: #212529;
+                border: 1px solid #e9ecef;
+                border-radius: 12px;
             }
 
             .dash-chip {
@@ -13,20 +14,20 @@
                 gap: 0.35rem;
                 padding: 0.35rem 0.65rem;
                 border-radius: 999px;
-                background: rgba(255, 255, 255, 0.1);
-                border: 1px solid rgba(255, 255, 255, 0.2);
+                background: #ffffff;
+                border: 1px solid #e9ecef;
                 font-size: 0.85rem;
+                color: #495057;
             }
 
             .metric-card {
-                border: 1px solid #e5e7eb;
-                border-radius: 14px;
-                transition: transform 120ms ease, box-shadow 120ms ease;
+                border: 1px solid #e9ecef;
+                border-radius: 12px;
+                transition: box-shadow 120ms ease;
             }
 
             .metric-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
             }
 
             .metric-icon {
@@ -36,8 +37,8 @@
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                background: #e0ebff;
-                color: #1d4ed8;
+                background: #eef2f7;
+                color: #0d6efd;
             }
 
             .timeline-dot {
@@ -48,27 +49,26 @@
                 margin-top: 6px;
             }
             .task-section {
-                border-radius: 16px;
+                border-radius: 12px;
             }
             .task-table td, .task-table th {
                 padding: 0.85rem 1rem;
                 vertical-align: middle;
             }
             .task-table tbody tr {
-                border-left: 4px solid transparent;
-                transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+                border-left: 3px solid transparent;
+                transition: background 0.15s ease, border-color 0.15s ease;
             }
             .task-table tbody tr:hover {
-                background: #f8fafc;
-                border-color: #0ea5e9;
-                box-shadow: inset 0 1px 0 rgba(0,0,0,0.03), inset 0 -1px 0 rgba(0,0,0,0.03);
+                background: #f8f9fa;
+                border-color: #0d6efd;
             }
             .task-table .title {
                 font-weight: 700;
-                color: #0f172a;
+                color: #212529;
             }
             .task-table .subtext {
-                color: #6b7280;
+                color: #6c757d;
                 font-size: 0.85rem;
             }
             .task-pill {
@@ -77,10 +77,10 @@
                 gap: 0.4rem;
                 padding: 0.25rem 0.55rem;
                 border-radius: 999px;
-                border: 1px solid #e5e7eb;
-                background: #f8fafc;
+                border: 1px solid #e9ecef;
+                background: #f8f9fa;
                 font-size: 0.78rem;
-                color: #334155;
+                color: #495057;
                 letter-spacing: 0.02em;
             }
             .task-pill.label-pill {
@@ -95,17 +95,18 @@
                 text-transform: uppercase;
                 letter-spacing: 0.02em;
             }
-            .task-badge-todo { background: #f1f5f9; color: #475569; }
-            .task-badge-progress { background: #e0f2fe; color: #0369a1; }
-            .task-badge-done { background: #dcfce7; color: #166534; }
-            .task-badge-blocked { background: #fee2e2; color: #b91c1c; }
-            .task-badge-on-hold { background: #fef3c7; color: #92400e; }
-            .task-badge-deployed-s { background: #e0f2fe; color: #0c4a6e; }
-            .task-badge-deployed-p { background: #e2e8f0; color: #1e293b; }
-            .task-badge-reopen { background: #fef3c7; color: #92400e; }
-            .task-priority-low { background: #eef2ff; color: #3730a3; }
-            .task-priority-medium { background: #fef9c3; color: #a16207; }
-            .task-priority-high { background: #ffe4e6; color: #be123c; }
+            .task-badge-todo { background: #f1f3f5; color: #495057; }
+            .task-badge-progress { background: #e7f1ff; color: #0d6efd; }
+            .task-badge-done { background: #e6f4ea; color: #198754; }
+            .task-badge-completed { background: #e6f4ea; color: #198754; }
+            .task-badge-blocked { background: #f8d7da; color: #b02a37; }
+            .task-badge-on-hold { background: #fff3cd; color: #997404; }
+            .task-badge-deployed-s { background: #e7f1ff; color: #0b5ed7; }
+            .task-badge-deployed-p { background: #e9ecef; color: #343a40; }
+            .task-badge-reopen { background: #fff3cd; color: #997404; }
+            .task-priority-low { background: #eef2ff; color: #3d5afe; }
+            .task-priority-medium { background: #fff3cd; color: #997404; }
+            .task-priority-high { background: #f8d7da; color: #b02a37; }
         </style>
     @endonce
 
@@ -117,7 +118,7 @@
                         <i class="bi bi-clipboard-check"></i> My Tasks
                     </div>
                     <h1 class="h3 mb-1">Welcome back, {{ auth()->user()->name }}</h1>
-                    <p class="mb-0 text-white-50">Your task status overview.</p>
+                    <p class="mb-0 text-muted">Your task status overview.</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                     <span class="dash-chip"><i class="bi bi-clock"></i> {{ now()->format('M d, H:i') }}</span>
@@ -205,6 +206,7 @@
                                 $statusClass = match ($task->status) {
                                     'in_progress' => 'task-badge-progress',
                                     'done' => 'task-badge-done',
+                                    'completed' => 'task-badge-completed',
                                     'blocked' => 'task-badge-blocked',
                                     'on_hold' => 'task-badge-on-hold',
                                     'deployed-s' => 'task-badge-deployed-s',
@@ -323,6 +325,7 @@
                                 $statusClass = match ($task->status) {
                                     'in_progress' => 'task-badge-progress',
                                     'done' => 'task-badge-done',
+                                    'completed' => 'task-badge-completed',
                                     'blocked' => 'task-badge-blocked',
                                     'on_hold' => 'task-badge-on-hold',
                                     'deployed-s' => 'task-badge-deployed-s',

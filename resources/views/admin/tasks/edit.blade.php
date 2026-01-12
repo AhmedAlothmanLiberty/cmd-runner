@@ -50,6 +50,7 @@
             .ops-pill.todo { background: #bae6fd; color: #075985; }
             .ops-pill.in_progress { background: #fef9c3; color: #854d0e; }
             .ops-pill.done { background: #bbf7d0; color: #166534; }
+            .ops-pill.completed { background: #bbf7d0; color: #166534; }
             .ops-pill.blocked { background: #fecaca; color: #b91c1c; }
             .ops-pill.on_hold { background: #fef3c7; color: #92400e; }
             .ops-pill.deployed-s { background: #e0f2fe; color: #0c4a6e; }

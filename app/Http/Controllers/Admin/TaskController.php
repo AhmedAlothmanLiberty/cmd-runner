@@ -156,7 +156,7 @@ class TaskController extends Controller
 
         $data['created_by'] = $userId;
         $data['updated_by'] = $userId;
-        $data['completed_at'] = $data['status'] === 'done' ? now() : null;
+        $data['completed_at'] = in_array($data['status'], ['done', 'completed'], true) ? now() : null;
 
         $task = Task::create(Arr::except($data, ['labels', 'comment', 'attachments']));
 
@@ -188,7 +188,7 @@ class TaskController extends Controller
         $userId = auth()->id();
 
         $data['updated_by'] = $userId;
-        if ($data['status'] === 'done') {
+        if (in_array($data['status'], ['done', 'completed'], true)) {
             $data['completed_at'] = $task->completed_at ?? now();
         } else {
             $data['completed_at'] = null;
@@ -237,7 +237,9 @@ class TaskController extends Controller
 
         $task->status = $validated['status'];
         $task->updated_by = auth()->id();
-        $task->completed_at = $task->status === 'done' ? ($task->completed_at ?? now()) : null;
+        $task->completed_at = in_array($task->status, ['done', 'completed'], true)
+            ? ($task->completed_at ?? now())
+            : null;
         $task->save();
 
         $this->notifyTaskEvent($task, 'status_changed', [

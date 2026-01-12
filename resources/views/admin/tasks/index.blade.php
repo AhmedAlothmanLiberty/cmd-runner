@@ -63,6 +63,10 @@
                 background: #bbf7d0;
                 color: #166534;
             }
+            .status-cell--completed .status-text {
+                background: #bbf7d0;
+                color: #166534;
+            }
             .status-cell--blocked .status-text {
                 background: #fecaca;
                 color: #b91c1c;
