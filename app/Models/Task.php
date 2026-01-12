@@ -16,6 +16,7 @@ class Task extends Model
     public const STATUS_TODO = 'todo';
     public const STATUS_IN_PROGRESS = 'in_progress';
     public const STATUS_DONE = 'done';
+    public const STATUS_COMPLETED = 'completed';
     public const STATUS_BLOCKED = 'blocked';
     public const STATUS_ON_HOLD = 'on_hold';
     public const STATUS_DEPLOYED_S = 'deployed-s';
@@ -26,6 +27,7 @@ class Task extends Model
         self::STATUS_TODO => 'To do',
         self::STATUS_IN_PROGRESS => 'In progress',
         self::STATUS_DONE => 'Done',
+        self::STATUS_COMPLETED => 'Completed',
         self::STATUS_BLOCKED => 'Blocked',
         self::STATUS_ON_HOLD => 'On hold',
         self::STATUS_DEPLOYED_S => 'Deployed S',
