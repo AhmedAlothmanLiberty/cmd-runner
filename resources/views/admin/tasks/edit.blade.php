@@ -69,7 +69,7 @@
                 <h2 class="h4 mb-0">Edit Task</h2>
                 <small class="text-muted">Update task details and status.</small>
             </div>
-            <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary mt-3 mt-md-0">
+            <a href="{{ route('admin.tasks.index', request()->query()) }}" class="btn btn-outline-secondary mt-3 mt-md-0">
                 <i class="bi bi-arrow-left me-1"></i> Back to tasks
             </a>
         </div>

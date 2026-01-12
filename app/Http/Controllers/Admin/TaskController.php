@@ -200,7 +200,8 @@ class TaskController extends Controller
         $this->storeComment($task, $request->input('comment'), $userId);
         $this->notifyTaskEvent($task, 'new_task');
 
-        return redirect()->route('admin.tasks.index')->with('status', 'Task created.');
+        $redirectFilters = $this->extractReturnFilters($request);
+        return redirect()->route('admin.tasks.index', $redirectFilters)->with('status', 'Task created.');
     }
 
     public function edit(Task $task): View
@@ -237,7 +238,8 @@ class TaskController extends Controller
         $this->storeComment($task, $request->input('comment'), $userId);
         $this->notifyTaskEvent($task, 'task_updated');
 
-        return redirect()->route('admin.tasks.index')->with('status', 'Task updated.');
+        $redirectFilters = $this->extractReturnFilters($request);
+        return redirect()->route('admin.tasks.index', $redirectFilters)->with('status', 'Task updated.');
     }
 
     public function addComment(Request $request, Task $task): RedirectResponse
@@ -300,6 +302,15 @@ class TaskController extends Controller
     private function syncLabels(Task $task, array $labelIds): void
     {
         $task->labels()->sync($labelIds);
+    }
+
+    private function extractReturnFilters(Request $request): array
+    {
+        $filters = $request->input('return_filters', []);
+        $allowed = ['search', 'status', 'priority', 'assigned_to', 'category_id', 'per_page'];
+        $filtered = array_intersect_key((array) $filters, array_flip($allowed));
+
+        return array_filter($filtered, static fn ($value) => $value !== null && $value !== '');
     }
 
     private function storeAttachments(Task $task, Request $request): void

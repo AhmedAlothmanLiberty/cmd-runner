@@ -125,7 +125,7 @@
                     @endif
                 @endif
                 @can('manage-tasks')
-                    <a href="{{ route('admin.tasks.create') }}" class="btn btn-primary">
+                    <a href="{{ route('admin.tasks.create', request()->query()) }}" class="btn btn-primary">
                         <i class="bi bi-plus-lg me-1"></i> New Task
                     </a>
                 @endcan
@@ -242,7 +242,7 @@
                                 </td>
                                 <td>
                                     <div class="d-flex flex-column">
-                                        <a class="title text-decoration-none" href="{{ route('admin.tasks.show', $task) }}">
+                                        <a class="title text-decoration-none" href="{{ route('admin.tasks.show', array_merge(['task' => $task], request()->query())) }}">
                                             {{ $task->title }}
                                         </a>
                                         {{-- @if ($task->description)
@@ -300,7 +300,7 @@
                                                 <i class="bi bi-three-dots"></i>
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end">
-                                                <li><a class="dropdown-item" href="{{ route('admin.tasks.edit', $task) }}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+                                                <li><a class="dropdown-item" href="{{ route('admin.tasks.edit', array_merge(['task' => $task], request()->query())) }}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
                                                 @can('delete', $task)
                                                     <li>
                                                         <form action="{{ route('admin.tasks.destroy', $task) }}" method="POST" onsubmit="return confirm('Delete this task?')">

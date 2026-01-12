@@ -245,7 +245,7 @@
                             <tr>
                                 <td>
                                     <div class="d-flex flex-column">
-                                        <a class="title text-decoration-none" href="{{ route('admin.tasks.show', $task) }}">
+                                        <a class="title text-decoration-none" href="{{ route('admin.tasks.show', array_merge(['task' => $task], request()->query())) }}">
                                             {{ $task->title }}
                                         </a>
                                         @if ($task->description)
@@ -368,7 +368,7 @@
                             <tr>
                                 <td>
                                     <div class="d-flex flex-column">
-                                        <a class="title text-decoration-none" href="{{ route('admin.tasks.show', $task) }}">
+                                        <a class="title text-decoration-none" href="{{ route('admin.tasks.show', array_merge(['task' => $task], request()->query())) }}">
                                             {{ $task->title }}
                                         </a>
                                         @if ($task->description)

@@ -70,11 +70,11 @@
                 <small class="text-muted">Task details and activity.</small>
             </div>
             <div class="d-flex gap-2 mt-3 mt-md-0">
-                <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary">
+                <a href="{{ route('admin.tasks.index', request()->query()) }}" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left me-1"></i> Back to tasks
                 </a>
                 @can('update', $task)
-                    <a href="{{ route('admin.tasks.edit', $task) }}" class="btn btn-primary">
+                    <a href="{{ route('admin.tasks.edit', array_merge(['task' => $task], request()->query())) }}" class="btn btn-primary">
                         <i class="bi bi-pencil me-1"></i> Edit
                     </a>
                 @endcan

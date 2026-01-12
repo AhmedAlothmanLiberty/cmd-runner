@@ -5,7 +5,7 @@
                 <h2 class="h4 mb-0">Create Task</h2>
                 <small class="text-muted">Add a new task to track work.</small>
             </div>
-            <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary mt-3 mt-md-0">
+            <a href="{{ route('admin.tasks.index', request()->query()) }}" class="btn btn-outline-secondary mt-3 mt-md-0">
                 <i class="bi bi-arrow-left me-1"></i> Back to tasks
             </a>
         </div>
