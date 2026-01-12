@@ -158,6 +158,17 @@
                         </select>
                     </div>
                     <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label mb-1">Category</label>
+                        <select name="category_id" class="form-select">
+                            <option value="">All</option>
+                            @foreach ($categories as $category)
+                                <option value="{{ $category->id }}" @selected((string) ($filters['category_id'] ?? '') === (string) $category->id)>
+                                    {{ $category->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3 col-lg-2">
                         <label class="form-label mb-1">Priority</label>
                         <select name="priority" class="form-select">
                             <option value="">All</option>
@@ -166,7 +177,7 @@
                             <option value="high" @selected(($filters['priority'] ?? '') === 'high')>High</option>
                         </select>
                     </div>
-                    <div class="col-12 col-md-4 col-lg-3">
+                    <div class="col-12 col-md-4 col-lg-2">
                         <label class="form-label mb-1">Assigned to</label>
                         <select name="assigned_to" class="form-select">
                             <option value="">Anyone</option>
@@ -203,6 +214,7 @@
                         <tr>
                             <th>#</th>
                             <th>Task</th>
+                            <th>Category</th>
                             <th>Status</th>
                             <th>Priority</th>
                             <th>Assigned</th>
@@ -226,20 +238,23 @@
                                         {{-- @if ($task->description)
                                             <span class="subtext">{{ \Illuminate\Support\Str::limit($task->description, 80) }}</span>
                                         @endif --}}
-                                        @if ($task->labels->isNotEmpty())
-                                            <div class="d-flex flex-wrap gap-1">
-                                                @foreach ($task->labels as $label)
-                                                    @php
-                                                        $labelColor = $label->color ?? '#e2e8f0';
-                                                        $labelText = strtoupper($labelColor) === '#F59E0B' ? '#0f172a' : '#fff';
-                                                    @endphp
-                                                    <span class="pill label-pill" style="background-color: {{ $labelColor }}; color: {{ $labelText }};">
-                                                        {{ $label->name }}
-                                                    </span>
-                                                @endforeach
-                                            </div>
-                                        @endif
                                     </div>
+                                </td>
+                                <td>
+                                    @php
+                                        $category = $task->labels->first();
+                                    @endphp
+                                    @if ($category)
+                                        @php
+                                            $categoryColor = $category->color ?? '#e2e8f0';
+                                            $categoryText = strtoupper($categoryColor) === '#F59E0B' ? '#0f172a' : '#fff';
+                                        @endphp
+                                        <span class="pill label-pill" style="background-color: {{ $categoryColor }}; color: {{ $categoryText }};">
+                                            {{ $category->name }}
+                                        </span>
+                                    @else
+                                        <span class="text-muted small">—</span>
+                                    @endif
                                 </td>
                                 <td class="status-cell status-cell--{{ $task->status }}">
                                     <span class="status-text">
@@ -296,7 +311,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center text-muted py-4">No tasks yet.</td>
+                                <td colspan="10" class="text-center text-muted py-4">No tasks yet.</td>
                             </tr>
                         @endforelse
                     </tbody>

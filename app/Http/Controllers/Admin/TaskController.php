@@ -29,6 +29,7 @@ class TaskController extends Controller
         $status = $request->input('status');
         $priority = $request->input('priority');
         $assignedTo = $request->input('assigned_to');
+        $categoryId = $request->input('category_id');
 
         if ($search !== '') {
             $query->where(function ($q) use ($search): void {
@@ -49,6 +50,12 @@ class TaskController extends Controller
             $query->where('assigned_to', $assignedTo);
         }
 
+        if (! empty($categoryId)) {
+            $query->whereHas('labels', function ($q) use ($categoryId): void {
+                $q->where('task_labels.id', $categoryId);
+            });
+        }
+
         $tasks = $query
             ->orderByDesc('updated_at')
             ->paginate(15)
@@ -59,12 +66,14 @@ class TaskController extends Controller
             'status' => $status,
             'priority' => $priority,
             'assigned_to' => $assignedTo,
+            'category_id' => $categoryId,
         ];
 
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
+        $categories = TaskLabel::query()->orderBy('name')->get(['id', 'name', 'color']);
         $statusOptions = Task::visibleStatusLabels($user);
 
-        return view('admin.tasks.index', compact('tasks', 'filters', 'users', 'statusOptions'));
+        return view('admin.tasks.index', compact('tasks', 'filters', 'users', 'categories', 'statusOptions'));
     }
 
     public function backlog(Request $request): View
@@ -82,6 +91,7 @@ class TaskController extends Controller
         $status = $request->input('status');
         $priority = $request->input('priority');
         $assignedTo = $request->input('assigned_to');
+        $categoryId = $request->input('category_id');
 
         if ($search !== '') {
             $query->where(function ($q) use ($search): void {
@@ -102,6 +112,12 @@ class TaskController extends Controller
             $query->where('assigned_to', $assignedTo);
         }
 
+        if (! empty($categoryId)) {
+            $query->whereHas('labels', function ($q) use ($categoryId): void {
+                $q->where('task_labels.id', $categoryId);
+            });
+        }
+
         $tasks = $query
             ->orderByDesc('updated_at')
             ->paginate(15)
@@ -112,15 +128,18 @@ class TaskController extends Controller
             'status' => $status,
             'priority' => $priority,
             'assigned_to' => $assignedTo,
+            'category_id' => $categoryId,
         ];
 
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
+        $categories = TaskLabel::query()->orderBy('name')->get(['id', 'name', 'color']);
         $statusOptions = Task::backlogStatusLabels();
 
         return view('admin.tasks.index', [
             'tasks' => $tasks,
             'filters' => $filters,
             'users' => $users,
+            'categories' => $categories,
             'statusOptions' => $statusOptions,
             'pageTitle' => 'Backlog',
             'pageSubtitle' => 'On hold or deployed tasks.',
@@ -134,11 +153,11 @@ class TaskController extends Controller
     {
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
 
-        $labels = TaskLabel::query()->orderBy('name')->get();
+        $categories = TaskLabel::query()->orderBy('name')->get();
 
         $statusOptions = Task::visibleStatusLabels(request()->user());
 
-        return view('admin.tasks.create', compact('users', 'labels', 'statusOptions'));
+        return view('admin.tasks.create', compact('users', 'categories', 'statusOptions'));
     }
 
     public function show(Task $task): View
@@ -158,9 +177,10 @@ class TaskController extends Controller
         $data['updated_by'] = $userId;
         $data['completed_at'] = in_array($data['status'], ['done', 'completed'], true) ? now() : null;
 
-        $task = Task::create(Arr::except($data, ['labels', 'comment', 'attachments']));
+        $task = Task::create(Arr::except($data, ['category_id', 'comment', 'attachments']));
 
-        $this->syncLabels($task, $data['labels'] ?? []);
+        $categoryId = $data['category_id'] ?? null;
+        $this->syncLabels($task, $categoryId ? [$categoryId] : []);
         $this->storeAttachments($task, $request);
         $this->storeComment($task, $request->input('comment'), $userId);
         $this->notifyTaskEvent($task, 'new_task');
@@ -174,11 +194,11 @@ class TaskController extends Controller
         $task->load(['labels', 'attachments', 'comments.user']);
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
 
-        $labels = TaskLabel::query()->orderBy('name')->get();
+        $categories = TaskLabel::query()->orderBy('name')->get();
 
         $statusOptions = Task::visibleStatusLabels(request()->user());
 
-        return view('admin.tasks.edit', compact('task', 'users', 'labels', 'statusOptions'));
+        return view('admin.tasks.edit', compact('task', 'users', 'categories', 'statusOptions'));
     }
 
     public function update(UpdateTaskRequest $request, Task $task): RedirectResponse
@@ -194,9 +214,10 @@ class TaskController extends Controller
             $data['completed_at'] = null;
         }
 
-        $task->update(Arr::except($data, ['labels', 'comment', 'attachments']));
+        $task->update(Arr::except($data, ['category_id', 'comment', 'attachments']));
 
-        $this->syncLabels($task, $data['labels'] ?? []);
+        $categoryId = $data['category_id'] ?? null;
+        $this->syncLabels($task, $categoryId ? [$categoryId] : []);
         $this->storeAttachments($task, $request);
         $this->storeComment($task, $request->input('comment'), $userId);
         $this->notifyTaskEvent($task, 'task_updated');
