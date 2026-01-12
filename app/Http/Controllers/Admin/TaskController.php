@@ -30,6 +30,11 @@ class TaskController extends Controller
         $priority = $request->input('priority');
         $assignedTo = $request->input('assigned_to');
         $categoryId = $request->input('category_id');
+        $perPage = $request->input('per_page', '15');
+        $perPageOptions = ['15', '25', '50', 'all'];
+        if (! in_array((string) $perPage, $perPageOptions, true)) {
+            $perPage = '15';
+        }
 
         if ($search !== '') {
             $query->where(function ($q) use ($search): void {
@@ -56,9 +61,10 @@ class TaskController extends Controller
             });
         }
 
+        $perPageValue = $perPage === 'all' ? max(1, (int) $query->count()) : (int) $perPage;
         $tasks = $query
             ->orderByDesc('updated_at')
-            ->paginate(15)
+            ->paginate($perPageValue)
             ->appends($request->query());
 
         $filters = [
@@ -67,13 +73,14 @@ class TaskController extends Controller
             'priority' => $priority,
             'assigned_to' => $assignedTo,
             'category_id' => $categoryId,
+            'per_page' => (string) $perPage,
         ];
 
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
         $categories = TaskLabel::query()->orderBy('name')->get(['id', 'name', 'color']);
         $statusOptions = Task::visibleStatusLabels($user);
 
-        return view('admin.tasks.index', compact('tasks', 'filters', 'users', 'categories', 'statusOptions'));
+        return view('admin.tasks.index', compact('tasks', 'filters', 'users', 'categories', 'statusOptions', 'perPageOptions'));
     }
 
     public function backlog(Request $request): View
@@ -92,6 +99,11 @@ class TaskController extends Controller
         $priority = $request->input('priority');
         $assignedTo = $request->input('assigned_to');
         $categoryId = $request->input('category_id');
+        $perPage = $request->input('per_page', '15');
+        $perPageOptions = ['15', '25', '50', 'all'];
+        if (! in_array((string) $perPage, $perPageOptions, true)) {
+            $perPage = '15';
+        }
 
         if ($search !== '') {
             $query->where(function ($q) use ($search): void {
@@ -118,9 +130,10 @@ class TaskController extends Controller
             });
         }
 
+        $perPageValue = $perPage === 'all' ? max(1, (int) $query->count()) : (int) $perPage;
         $tasks = $query
             ->orderByDesc('updated_at')
-            ->paginate(15)
+            ->paginate($perPageValue)
             ->appends($request->query());
 
         $filters = [
@@ -129,6 +142,7 @@ class TaskController extends Controller
             'priority' => $priority,
             'assigned_to' => $assignedTo,
             'category_id' => $categoryId,
+            'per_page' => (string) $perPage,
         ];
 
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
@@ -141,6 +155,7 @@ class TaskController extends Controller
             'users' => $users,
             'categories' => $categories,
             'statusOptions' => $statusOptions,
+            'perPageOptions' => $perPageOptions,
             'pageTitle' => 'Backlog',
             'pageSubtitle' => 'On hold or deployed tasks.',
             'backLink' => route('admin.tasks.index'),
