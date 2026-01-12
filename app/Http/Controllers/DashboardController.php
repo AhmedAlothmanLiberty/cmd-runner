@@ -6,6 +6,7 @@ use App\Models\Automation;
 use App\Models\AutomationLog;
 use App\Models\PackageUpdateLog;
 use App\Models\Task;
+use App\Models\TaskLabel;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -20,6 +21,7 @@ class DashboardController extends Controller
         if (! $isSuperAdmin) {
             $status = $request->input('status');
             $assignedTo = $request->input('assigned_to');
+            $categoryId = $request->input('category_id');
 
             if ($status === null || $status === '') {
                 $status = 'in_progress';
@@ -33,6 +35,12 @@ class DashboardController extends Controller
                 $taskQuery->where('assigned_to', $assignedTo);
             } else {
                 $taskQuery->whereNotNull('assigned_to');
+            }
+
+            if (! empty($categoryId)) {
+                $taskQuery->whereHas('labels', function ($query) use ($categoryId) {
+                    $query->where('task_labels.id', $categoryId);
+                });
             }
 
             if (in_array($status, Task::allowedStatusesFor($user), true)) {
@@ -62,9 +70,11 @@ class DashboardController extends Controller
             }
 
             $users = User::query()->orderBy('name')->get(['id', 'name']);
+            $categories = TaskLabel::query()->orderBy('name')->get(['id', 'name']);
             $filters = [
                 'status' => $status,
                 'assigned_to' => $assignedTo,
+                'category_id' => $categoryId,
             ];
 
             return view('dashboard', [
@@ -72,6 +82,7 @@ class DashboardController extends Controller
                 'taskWidgets' => $taskWidgets,
                 'tasks' => $tasks,
                 'users' => $users,
+                'categories' => $categories,
                 'filters' => $filters,
                 'statusOptions' => $statusLabels,
             ]);

@@ -94,16 +94,17 @@
             </div>
             <div class="d-flex flex-wrap gap-2">
                 <span class="ops-pill" style="background:#e0e7ff;color:#3730a3;">{{ $task->priority }}</span>
-                @if ($task->labels->isNotEmpty())
-                    @foreach ($task->labels as $label)
-                        @php
-                            $labelColor = $label->color ?? '#e2e8f0';
-                            $labelText = strtoupper($labelColor) === '#F59E0B' ? '#0f172a' : '#fff';
-                        @endphp
-                        <span class="ops-pill" style="background: {{ $labelColor }}; color: {{ $labelText }};">
-                            {{ $label->name }}
-                        </span>
-                    @endforeach
+                @php
+                    $category = $task->labels->first();
+                @endphp
+                @if ($category)
+                    @php
+                        $categoryColor = $category->color ?? '#e2e8f0';
+                        $categoryText = strtoupper($categoryColor) === '#F59E0B' ? '#0f172a' : '#fff';
+                    @endphp
+                    <span class="ops-pill" style="background: {{ $categoryColor }}; color: {{ $categoryText }};">
+                        {{ $category->name }}
+                    </span>
                 @endif
             </div>
         </div>

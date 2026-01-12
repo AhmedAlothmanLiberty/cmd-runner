@@ -81,28 +81,30 @@
     </div>
 
     <div class="col-12 col-md-6">
-        <label class="form-label" for="labels">Labels</label>
+        <label class="form-label" for="category_id">Category</label>
         <select
-            name="labels[]"
-            id="labels"
-            class="form-select @error('labels') is-invalid @enderror"
-            multiple
+            name="category_id"
+            id="category_id"
+            class="form-select @error('category_id') is-invalid @enderror"
             data-label-select
         >
-            @foreach ($labels as $label)
+            @php
+                $selectedCategory = old('category_id', $task?->labels->first()?->id);
+            @endphp
+            <option value="">No category</option>
+            @foreach ($categories as $category)
                 <option
-                    value="{{ $label->id }}"
-                    data-color="{{ $label->color }}"
-                    @selected(in_array($label->id, old('labels', isset($task) ? $task->labels->pluck('id')->all() : [])))
+                    value="{{ $category->id }}"
+                    data-color="{{ $category->color }}"
+                    @selected((string) $selectedCategory === (string) $category->id)
                 >
-                    {{ $label->name }}
+                    {{ $category->name }}
                 </option>
             @endforeach
         </select>
-        <div class="form-text">Select one or more labels.</div>
+        <div class="form-text">Select a category.</div>
         <div class="d-flex flex-wrap gap-1 mt-2" data-label-preview></div>
-        @error('labels')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        @error('labels.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+        @error('category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
     <div class="col-12">
