@@ -17,26 +17,24 @@ class Task extends Model
     public const STATUS_IN_PROGRESS = 'in_progress';
     public const STATUS_DONE = 'done';
     public const STATUS_COMPLETED = 'completed';
-    public const STATUS_BLOCKED = 'blocked';
-    public const STATUS_ON_HOLD = 'on_hold';
     public const STATUS_DEPLOYED_S = 'deployed-s';
     public const STATUS_DEPLOYED_P = 'deployed-p';
+    public const STATUS_BACKLOG = 'backlog';
     public const STATUS_REOPEN = 'reopen';
 
     public const STATUS_LABELS = [
-        self::STATUS_TODO => 'To do',
-        self::STATUS_IN_PROGRESS => 'In progress',
-        self::STATUS_DONE => 'Done',
-        self::STATUS_COMPLETED => 'Completed',
-        self::STATUS_BLOCKED => 'Blocked',
-        self::STATUS_ON_HOLD => 'On hold',
-        self::STATUS_DEPLOYED_S => 'Deployed S',
-        self::STATUS_DEPLOYED_P => 'Deployed P',
+        self::STATUS_TODO => 'To Do',
+        self::STATUS_IN_PROGRESS => 'In Progress',
+        self::STATUS_DONE => 'Testing',
+        self::STATUS_DEPLOYED_S => 'Staging',
+        self::STATUS_DEPLOYED_P => 'Production',
+        self::STATUS_COMPLETED => 'Complete',
+        self::STATUS_BACKLOG => 'Backlog',
         self::STATUS_REOPEN => 'Reopen',
     ];
 
     public const RESTRICTED_STATUSES = [
-        self::STATUS_ON_HOLD,
+        self::STATUS_BACKLOG,
         self::STATUS_DEPLOYED_S,
         self::STATUS_DEPLOYED_P,
     ];
@@ -90,11 +88,14 @@ class Task extends Model
 
     public function scopeVisibleTo(Builder $query, ?User $user): Builder
     {
-        if (self::canManageRestricted($user)) {
-            return $query;
+        $excluded = [self::STATUS_BACKLOG];
+
+        if (! self::canManageRestricted($user)) {
+            $excluded[] = self::STATUS_DEPLOYED_S;
+            $excluded[] = self::STATUS_DEPLOYED_P;
         }
 
-        return $query->whereNotIn('status', self::RESTRICTED_STATUSES);
+        return $query->whereNotIn('status', $excluded);
     }
 
     public function scopeBacklog(Builder $query): Builder
@@ -119,11 +120,41 @@ class Task extends Model
 
     public static function visibleStatusLabels(?User $user): array
     {
-        if (self::canManageRestricted($user)) {
-            return self::STATUS_LABELS;
+        $labels = self::STATUS_LABELS;
+        unset($labels[self::STATUS_BACKLOG]);
+
+        if (! self::canManageRestricted($user)) {
+            unset($labels[self::STATUS_DEPLOYED_S], $labels[self::STATUS_DEPLOYED_P]);
         }
 
-        return array_diff_key(self::STATUS_LABELS, array_flip(self::RESTRICTED_STATUSES));
+        return $labels;
+    }
+
+    public static function formStatusLabels(): array
+    {
+        $formStatuses = [
+            self::STATUS_TODO,
+            self::STATUS_IN_PROGRESS,
+            self::STATUS_DONE,
+            self::STATUS_DEPLOYED_S,
+            self::STATUS_DEPLOYED_P,
+            self::STATUS_COMPLETED,
+        ];
+
+        return array_intersect_key(self::STATUS_LABELS, array_flip($formStatuses));
+    }
+
+    public static function editStatusLabels(?self $task = null): array
+    {
+        $labels = self::formStatusLabels();
+
+        if ($task && $task->status === self::STATUS_BACKLOG) {
+            $labels[self::STATUS_BACKLOG] = self::STATUS_LABELS[self::STATUS_BACKLOG];
+        }
+
+        $labels[self::STATUS_REOPEN] = self::STATUS_LABELS[self::STATUS_REOPEN];
+
+        return $labels;
     }
 
     public static function backlogStatusLabels(): array
@@ -139,6 +170,16 @@ class Task extends Model
     public static function allowedStatusesFor(?User $user): array
     {
         return array_keys(self::visibleStatusLabels($user));
+    }
+
+    public static function formStatuses(): array
+    {
+        return array_keys(self::formStatusLabels());
+    }
+
+    public static function editStatuses(?self $task = null): array
+    {
+        return array_keys(self::editStatusLabels($task));
     }
 
     public static function allStatuses(): array

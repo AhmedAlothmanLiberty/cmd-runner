@@ -15,7 +15,8 @@ class UpdateTaskRequest extends FormRequest
 
     public function rules(): array
     {
-        $allowedStatuses = Task::allowedStatusesFor($this->user());
+        $task = $this->route('task');
+        $allowedStatuses = Task::editStatuses($task instanceof Task ? $task : null);
 
         return [
             'title' => ['required', 'string', 'max:255'],

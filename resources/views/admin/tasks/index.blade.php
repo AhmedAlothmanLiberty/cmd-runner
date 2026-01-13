@@ -67,13 +67,9 @@
                 background: #bbf7d0;
                 color: #166534;
             }
-            .status-cell--blocked .status-text {
-                background: #fecaca;
-                color: #b91c1c;
-            }
-            .status-cell--on_hold .status-text {
-                background: #fef3c7;
-                color: #92400e;
+            .status-cell--backlog .status-text {
+                background: #e2e8f0;
+                color: #475569;
             }
             .status-cell--deployed-s .status-text {
                 background: #e0f2fe;
@@ -151,7 +147,7 @@
                         <label class="form-label mb-1">Status</label>
                         <select name="status" class="form-select">
                             <option value="">All</option>
-                            @php $statusOptions = $statusOptions ?? \App\Models\Task::statusLabels(); @endphp
+                            @php $statusOptions = $statusOptions ?? \App\Models\Task::visibleStatusLabels(auth()->user()); @endphp
                             @foreach ($statusOptions as $value => $label)
                                 <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
                             @endforeach
@@ -268,7 +264,7 @@
                                 </td>
                                 <td class="status-cell status-cell--{{ $task->status }}">
                                     <span class="status-text">
-                                        {{ str_replace(['_', '-'], ' ', $task->status) }}
+                                        {{ \App\Models\Task::statusLabels()[$task->status] ?? str_replace(['_', '-'], ' ', $task->status) }}
                                     </span>
                                 </td>
                                 <td>

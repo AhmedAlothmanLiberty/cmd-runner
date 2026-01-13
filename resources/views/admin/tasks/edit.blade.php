@@ -51,8 +51,7 @@
             .ops-pill.in_progress { background: #fef9c3; color: #854d0e; }
             .ops-pill.done { background: #bbf7d0; color: #166534; }
             .ops-pill.completed { background: #bbf7d0; color: #166534; }
-            .ops-pill.blocked { background: #fecaca; color: #b91c1c; }
-            .ops-pill.on_hold { background: #fef3c7; color: #92400e; }
+            .ops-pill.backlog { background: #e2e8f0; color: #475569; }
             .ops-pill.deployed-s { background: #e0f2fe; color: #0c4a6e; }
             .ops-pill.deployed-p { background: #e2e8f0; color: #1e293b; }
             .ops-pill.reopen { background: #fef3c7; color: #92400e; }
@@ -81,7 +80,7 @@
                 <div class="ops-section-title mb-1">Task Overview</div>
                 <div class="d-flex flex-wrap align-items-center gap-2">
                     <div class="ops-title">{{ $task->title }}</div>
-                    <span class="ops-pill {{ $task->status }}">{{ str_replace('_', ' ', $task->status) }}</span>
+                    <span class="ops-pill {{ $task->status }}">{{ \App\Models\Task::statusLabels()[$task->status] ?? str_replace(['_', '-'], ' ', $task->status) }}</span>
                 </div>
                 <div class="ops-subtext">Assigned to {{ $task->assignedTo?->name ?? 'Unassigned' }} · Reporter {{ $task->createdBy?->name ?? '—' }}</div>
             </div>

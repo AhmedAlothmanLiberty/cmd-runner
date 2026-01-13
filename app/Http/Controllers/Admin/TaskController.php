@@ -170,7 +170,7 @@ class TaskController extends Controller
 
         $categories = TaskLabel::query()->orderBy('name')->get();
 
-        $statusOptions = Task::visibleStatusLabels(request()->user());
+        $statusOptions = Task::formStatusLabels();
 
         return view('admin.tasks.create', compact('users', 'categories', 'statusOptions'));
     }
@@ -190,7 +190,7 @@ class TaskController extends Controller
 
         $data['created_by'] = $userId;
         $data['updated_by'] = $userId;
-        $data['completed_at'] = in_array($data['status'], ['done', 'completed'], true) ? now() : null;
+        $data['completed_at'] = $data['status'] === 'completed' ? now() : null;
 
         $task = Task::create(Arr::except($data, ['category_id', 'comment', 'attachments']));
 
@@ -212,7 +212,7 @@ class TaskController extends Controller
 
         $categories = TaskLabel::query()->orderBy('name')->get();
 
-        $statusOptions = Task::visibleStatusLabels(request()->user());
+        $statusOptions = Task::editStatusLabels($task);
 
         return view('admin.tasks.edit', compact('task', 'users', 'categories', 'statusOptions'));
     }
@@ -224,7 +224,7 @@ class TaskController extends Controller
         $userId = auth()->id();
 
         $data['updated_by'] = $userId;
-        if (in_array($data['status'], ['done', 'completed'], true)) {
+        if ($data['status'] === 'completed') {
             $data['completed_at'] = $task->completed_at ?? now();
         } else {
             $data['completed_at'] = null;
@@ -270,12 +270,12 @@ class TaskController extends Controller
         $this->authorize('update', $task);
 
         $validated = $request->validate([
-            'status' => ['required', Rule::in(Task::allowedStatusesFor($request->user()))],
+            'status' => ['required', Rule::in(Task::editStatuses($task))],
         ]);
 
         $task->status = $validated['status'];
         $task->updated_by = auth()->id();
-        $task->completed_at = in_array($task->status, ['done', 'completed'], true)
+        $task->completed_at = $task->status === 'completed'
             ? ($task->completed_at ?? now())
             : null;
         $task->save();

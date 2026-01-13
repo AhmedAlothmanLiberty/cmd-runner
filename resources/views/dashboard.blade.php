@@ -48,29 +48,37 @@
                 background: #0d6efd;
                 margin-top: 6px;
             }
+
             .task-section {
                 border-radius: 12px;
             }
-            .task-table td, .task-table th {
+
+            .task-table td,
+            .task-table th {
                 padding: 0.85rem 1rem;
                 vertical-align: middle;
             }
+
             .task-table tbody tr {
                 border-left: 3px solid transparent;
                 transition: background 0.15s ease, border-color 0.15s ease;
             }
+
             .task-table tbody tr:hover {
                 background: #f8f9fa;
                 border-color: #0d6efd;
             }
+
             .task-table .title {
                 font-weight: 700;
                 color: #212529;
             }
+
             .task-table .subtext {
                 color: #6c757d;
                 font-size: 0.85rem;
             }
+
             .task-pill {
                 display: inline-flex;
                 align-items: center;
@@ -83,10 +91,12 @@
                 color: #495057;
                 letter-spacing: 0.02em;
             }
+
             .task-pill.label-pill {
                 border: 0;
                 color: #fff;
             }
+
             .task-badge {
                 border-radius: 999px;
                 padding: 0.25rem 0.6rem;
@@ -95,22 +105,65 @@
                 text-transform: uppercase;
                 letter-spacing: 0.02em;
             }
-            .task-badge-todo { background: #f1f3f5; color: #495057; }
-            .task-badge-progress { background: #e7f1ff; color: #0d6efd; }
-            .task-badge-done { background: #e6f4ea; color: #198754; }
-            .task-badge-completed { background: #e6f4ea; color: #198754; }
-            .task-badge-blocked { background: #f8d7da; color: #b02a37; }
-            .task-badge-on-hold { background: #fff3cd; color: #997404; }
-            .task-badge-deployed-s { background: #e7f1ff; color: #0b5ed7; }
-            .task-badge-deployed-p { background: #e9ecef; color: #343a40; }
-            .task-badge-reopen { background: #fff3cd; color: #997404; }
-            .task-priority-low { background: #eef2ff; color: #3d5afe; }
-            .task-priority-medium { background: #fff3cd; color: #997404; }
-            .task-priority-high { background: #f8d7da; color: #b02a37; }
+
+            .task-badge-todo {
+                background: #f1f3f5;
+                color: #495057;
+            }
+
+            .task-badge-progress {
+                background: #e7f1ff;
+                color: #0d6efd;
+            }
+
+            .task-badge-done {
+                background: #e6f4ea;
+                color: #198754;
+            }
+
+            .task-badge-completed {
+                background: #e6f4ea;
+                color: #198754;
+            }
+
+            .task-badge-backlog {
+                background: #e9ecef;
+                color: #495057;
+            }
+
+            .task-badge-deployed-s {
+                background: #e7f1ff;
+                color: #0b5ed7;
+            }
+
+            .task-badge-deployed-p {
+                background: #e9ecef;
+                color: #343a40;
+            }
+
+            .task-badge-reopen {
+                background: #fff3cd;
+                color: #997404;
+            }
+
+            .task-priority-low {
+                background: #eef2ff;
+                color: #3d5afe;
+            }
+
+            .task-priority-medium {
+                background: #fff3cd;
+                color: #997404;
+            }
+
+            .task-priority-high {
+                background: #f8d7da;
+                color: #b02a37;
+            }
         </style>
     @endonce
 
-    @if (! $isSuperAdmin)
+    @if (!$isSuperAdmin)
         <div class="dash-hero p-2 mb-4 shadow-sm">
             <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
                 <div>
@@ -129,7 +182,8 @@
         <div class="row g-3 mb-4">
             @foreach ($taskWidgets as $widget)
                 <div class="col-12 col-sm-6 col-xl-3">
-                    <a class="text-decoration-none" href="{{ route('dashboard', array_filter(['status' => $widget['status']])) }}">
+                    <a class="text-decoration-none"
+                        href="{{ route('dashboard', array_filter(['status' => $widget['status']])) }}">
                         <div class="metric-card p-3 h-100 bg-white">
                             <div class="d-flex align-items-center justify-content-between mb-2">
                                 <span class="text-muted text-uppercase small fw-semibold">{{ $widget['label'] }}</span>
@@ -146,7 +200,8 @@
         </div>
 
         <div class="card shadow-sm border-0 task-section mb-4">
-            <div class="card-header bg-white d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            {{-- <div
+                class="card-header bg-white d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
                 <div>
                     <h5 class="mb-0">Tasks</h5>
                     <small class="text-muted">All tasks with filters.</small>
@@ -159,10 +214,7 @@
                         <select name="assigned_to" class="form-select">
                             <option value="">All assigned</option>
                             @foreach ($users as $user)
-                                <option
-                                    value="{{ $user->id }}"
-                                    @selected((string) ($filters['assigned_to'] ?? '') === (string) $user->id)
-                                >
+                                <option value="{{ $user->id }}" @selected((string) ($filters['assigned_to'] ?? '') === (string) $user->id)>
                                     {{ $user->name }}
                                 </option>
                             @endforeach
@@ -172,9 +224,10 @@
                         <label class="form-label mb-1">Status</label>
                         <select name="status" class="form-select">
                             <option value="">All</option>
-                            @php $statusOptions = $statusOptions ?? \App\Models\Task::statusLabels(); @endphp
+                            @php $statusOptions = $statusOptions ?? \App\Models\Task::visibleStatusLabels(auth()->user()); @endphp
                             @foreach ($statusOptions as $value => $label)
-                                <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
+                                <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}
+                                </option>
                             @endforeach
                         </select>
                     </div>
@@ -208,7 +261,7 @@
                         </a>
                     </div>
                 </form>
-            </div>
+            </div> --}}
             <div class="table-responsive">
                 <table class="table table-hover mb-0 align-middle task-table">
                     <thead class="table-light">
@@ -229,8 +282,7 @@
                                     'in_progress' => 'task-badge-progress',
                                     'done' => 'task-badge-done',
                                     'completed' => 'task-badge-completed',
-                                    'blocked' => 'task-badge-blocked',
-                                    'on_hold' => 'task-badge-on-hold',
+                                    'backlog' => 'task-badge-backlog',
                                     'deployed-s' => 'task-badge-deployed-s',
                                     'deployed-p' => 'task-badge-deployed-p',
                                     'reopen' => 'task-badge-reopen',
@@ -245,11 +297,13 @@
                             <tr>
                                 <td>
                                     <div class="d-flex flex-column">
-                                        <a class="title text-decoration-none" href="{{ route('admin.tasks.show', array_merge(['task' => $task], request()->query())) }}">
+                                        <a class="title text-decoration-none"
+                                            href="{{ route('admin.tasks.show', array_merge(['task' => $task], request()->query())) }}">
                                             {{ $task->title }}
                                         </a>
                                         @if ($task->description)
-                                            <span class="subtext">{{ \Illuminate\Support\Str::limit($task->description, 80) }}</span>
+                                            <span
+                                                class="subtext">{{ \Illuminate\Support\Str::limit($task->description, 80) }}</span>
                                         @endif
                                     </div>
                                 </td>
@@ -260,9 +314,11 @@
                                     @if ($category)
                                         @php
                                             $categoryColor = $category->color ?? '#e2e8f0';
-                                            $categoryText = strtoupper($categoryColor) === '#F59E0B' ? '#0f172a' : '#fff';
+                                            $categoryText =
+                                                strtoupper($categoryColor) === '#F59E0B' ? '#0f172a' : '#fff';
                                         @endphp
-                                        <span class="task-pill label-pill" style="background-color: {{ $categoryColor }}; color: {{ $categoryText }};">
+                                        <span class="task-pill label-pill"
+                                            style="background-color: {{ $categoryColor }}; color: {{ $categoryText }};">
                                             {{ $category->name }}
                                         </span>
                                     @else
@@ -270,7 +326,8 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <span class="task-badge {{ $statusClass }}">{{ str_replace('_', ' ', $task->status) }}</span>
+                                    <span
+                                        class="task-badge {{ $statusClass }}">{{ \App\Models\Task::statusLabels()[$task->status] ?? str_replace(['_', '-'], ' ', $task->status) }}</span>
                                 </td>
                                 <td>
                                     <span class="task-badge {{ $priorityClass }}">{{ $task->priority }}</span>
@@ -315,6 +372,37 @@
             @endforeach
         </div>
 
+        <div class="row g-3 mb-4">
+            @foreach ($taskWidgets as $widget)
+                @php
+                    $widgetIcon = match ($widget['status']) {
+                        'todo' => 'list-task',
+                        'in_progress' => 'hourglass-split',
+                        'done' => 'bug',
+                        'deployed-s' => 'cloud-upload',
+                        'deployed-p' => 'rocket-takeoff',
+                        'completed' => 'check-circle',
+                        'reopen' => 'arrow-counterclockwise',
+                        default => 'clipboard',
+                    };
+                @endphp
+                <div class="col-12 col-sm-6 col-xl-3">
+                    <a class="text-decoration-none" href="{{ route('admin.tasks.index', array_filter(['status' => $widget['status']])) }}">
+                        <div class="metric-card p-3 h-100 bg-white">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="text-muted text-uppercase small fw-semibold">{{ $widget['label'] }}</span>
+                                <span class="metric-icon">
+                                    <i class="bi bi-{{ $widgetIcon }}"></i>
+                                </span>
+                            </div>
+                            <div class="h4 mb-1">{{ $widget['value'] }}</div>
+                            <small class="text-muted">Across the team</small>
+                        </div>
+                    </a>
+                </div>
+            @endforeach
+        </div>
+
         <div class="card shadow-sm border-0 task-section mb-4">
             <div class="card-header bg-white d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
                 <div>
@@ -352,8 +440,7 @@
                                     'in_progress' => 'task-badge-progress',
                                     'done' => 'task-badge-done',
                                     'completed' => 'task-badge-completed',
-                                    'blocked' => 'task-badge-blocked',
-                                    'on_hold' => 'task-badge-on-hold',
+                                    'backlog' => 'task-badge-backlog',
                                     'deployed-s' => 'task-badge-deployed-s',
                                     'deployed-p' => 'task-badge-deployed-p',
                                     'reopen' => 'task-badge-reopen',
@@ -368,7 +455,8 @@
                             <tr>
                                 <td>
                                     <div class="d-flex flex-column">
-                                        <a class="title text-decoration-none" href="{{ route('admin.tasks.show', array_merge(['task' => $task], request()->query())) }}">
+                                        <a class="title text-decoration-none"
+                                            href="{{ route('admin.tasks.show', array_merge(['task' => $task], request()->query())) }}">
                                             {{ $task->title }}
                                         </a>
                                         @if ($task->description)
@@ -383,9 +471,11 @@
                                     @if ($category)
                                         @php
                                             $categoryColor = $category->color ?? '#e2e8f0';
-                                            $categoryText = strtoupper($categoryColor) === '#F59E0B' ? '#0f172a' : '#fff';
+                                            $categoryText =
+                                                strtoupper($categoryColor) === '#F59E0B' ? '#0f172a' : '#fff';
                                         @endphp
-                                        <span class="task-pill label-pill" style="background-color: {{ $categoryColor }}; color: {{ $categoryText }};">
+                                        <span class="task-pill label-pill"
+                                            style="background-color: {{ $categoryColor }}; color: {{ $categoryText }};">
                                             {{ $category->name }}
                                         </span>
                                     @else
@@ -393,7 +483,8 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <span class="task-badge {{ $statusClass }}">{{ str_replace('_', ' ', $task->status) }}</span>
+                                    <span
+                                        class="task-badge {{ $statusClass }}">{{ \App\Models\Task::statusLabels()[$task->status] ?? str_replace(['_', '-'], ' ', $task->status) }}</span>
                                 </td>
                                 <td>
                                     <span class="task-badge {{ $priorityClass }}">{{ $task->priority }}</span>
@@ -462,10 +553,12 @@
                                     <small class="text-muted">{{ $automation->command }}</small>
                                 </div>
                                 <div class="text-end">
-                                    <span class="badge {{ $automation->is_active ? 'text-bg-success' : 'text-bg-secondary' }}">
+                                    <span
+                                        class="badge {{ $automation->is_active ? 'text-bg-success' : 'text-bg-secondary' }}">
                                         {{ $automation->is_active ? 'Active' : 'Inactive' }}
                                     </span>
-                                    <div class="small text-muted">{{ $automation->created_at?->diffForHumans() ?? '—' }}</div>
+                                    <div class="small text-muted">
+                                        {{ $automation->created_at?->diffForHumans() ?? '—' }}</div>
                                 </div>
                             </div>
                         @empty
@@ -560,7 +653,8 @@
                                     <p class="mb-0 fw-semibold">{{ $lastPackageUpdate->package }}</p>
                                     <small class="text-muted">Status: {{ $lastPackageUpdate->status }}</small>
                                 </div>
-                                <span class="badge {{ $lastPackageUpdate->status === 'success' ? 'text-bg-success' : 'text-bg-danger' }}">
+                                <span
+                                    class="badge {{ $lastPackageUpdate->status === 'success' ? 'text-bg-success' : 'text-bg-danger' }}">
                                     {{ $lastPackageUpdate->status }}
                                 </span>
                             </div>

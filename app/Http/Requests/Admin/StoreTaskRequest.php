@@ -15,7 +15,7 @@ class StoreTaskRequest extends FormRequest
 
     public function rules(): array
     {
-        $allowedStatuses = Task::allowedStatusesFor($this->user());
+        $allowedStatuses = Task::formStatuses();
 
         return [
             'title' => ['required', 'string', 'max:255'],

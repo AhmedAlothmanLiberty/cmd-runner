@@ -113,9 +113,26 @@ class DashboardController extends Controller
 
         $latestTasks = Task::query()
             ->with(['assignedTo', 'labels'])
+            ->visibleTo($user)
             ->latest('updated_at')
             ->limit(3)
             ->get();
+
+        $taskCounts = Task::query()
+            ->visibleTo($user)
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $taskWidgets = [];
+        $statusLabels = Task::visibleStatusLabels($user);
+        foreach ($statusLabels as $statusKey => $label) {
+            $taskWidgets[] = [
+                'label' => $label,
+                'value' => (int) ($taskCounts[$statusKey] ?? 0),
+                'status' => $statusKey,
+            ];
+        }
 
         $onlineUsers = User::query()
             ->whereNotNull('last_seen_at')
@@ -185,6 +202,7 @@ class DashboardController extends Controller
         return view('dashboard', [
             'isSuperAdmin' => true,
             'highlights' => $highlights,
+            'taskWidgets' => $taskWidgets,
             'activity' => $activity,
             'latestAutomations' => $latestAutomations,
             'lastPackageUpdate' => $lastPackageUpdate,

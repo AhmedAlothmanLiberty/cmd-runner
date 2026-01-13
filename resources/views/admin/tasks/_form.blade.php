@@ -40,7 +40,7 @@
         <select name="status" id="status" class="form-select @error('status') is-invalid @enderror">
             @php
                 $statusValue = old('status', $task->status ?? \App\Models\Task::STATUS_TODO);
-                $statusOptions = $statusOptions ?? \App\Models\Task::statusLabels();
+                $statusOptions = $statusOptions ?? \App\Models\Task::formStatusLabels();
             @endphp
             @foreach ($statusOptions as $value => $label)
                 <option value="{{ $value }}" @selected($statusValue === $value)>{{ $label }}</option>

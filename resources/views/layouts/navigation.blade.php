@@ -47,7 +47,7 @@
                                                 <div>Comment: {{ $data['comment'] }}</div>
                                             @endif
                                         @if (! empty($data['status']))
-                                            <div>Status: {{ str_replace(['_', '-'], ' ', $data['status']) }}</div>
+                                            <div>Status: {{ \App\Models\Task::statusLabels()[$data['status']] ?? str_replace(['_', '-'], ' ', $data['status']) }}</div>
                                         @endif
                                         </div>
                                         <div class="small text-muted">{{ $notification->created_at?->diffForHumans() ?? '—' }}</div>
@@ -112,6 +112,7 @@
             const toastEl = document.getElementById('notificationToast');
             const toast = toastEl ? new bootstrap.Toast(toastEl, { delay: 2500 }) : null;
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+            const statusLabels = @json(\App\Models\Task::statusLabels());
 
             let lastNotificationId = list?.querySelector('.list-group-item')?.dataset?.id ?? null;
             let lastUnreadCount = Number(countBadge?.textContent ?? 0);
@@ -137,7 +138,8 @@
                                 <button type="submit" class="btn btn-sm btn-outline-secondary">Read</button>
                            </form>`.replace('::id::', item.id);
 
-                    const statusLine = item.status ? `<div>Status: ${escapeHtml(item.status.replace(/[_-]/g, ' '))}</div>` : '';
+                    const statusLabel = item.status ? (statusLabels[item.status] ?? item.status.replace(/[_-]/g, ' ')) : '';
+                    const statusLine = statusLabel ? `<div>Status: ${escapeHtml(statusLabel)}</div>` : '';
                     const actorLine = item.actor_name ? `<div>By: ${escapeHtml(item.actor_name)}</div>` : '';
                     const commentLine = item.comment ? `<div>Comment: ${escapeHtml(item.comment)}</div>` : '';
 
