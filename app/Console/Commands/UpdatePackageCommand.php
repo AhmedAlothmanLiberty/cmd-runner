@@ -10,7 +10,7 @@ class UpdatePackageCommand extends Command
 {
     protected $signature = 'package:update
         {name=liberty-cmd/reports : Package name}
-        {--dev=dev-main : Constraint/branch for non-production (ex: dev-main)}
+        {--dev=dev-dev : Constraint/branch for non-production (ex: dev-main)}
         {--prod=^1.2 : Constraint for production (ex: ^1.2)}
         {--triggered-by= : Actor label/email for audit log}
         {--no-clear : Skip php artisan optimize:clear}

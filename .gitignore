@@ -28,4 +28,5 @@ __pycache__/
 *.pyc
 /storage/app/easyengine/tmp/
 storage/logs/
+/database/seeders/AutomationSeeder.php
 /screenshoots

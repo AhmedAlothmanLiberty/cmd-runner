@@ -6,7 +6,6 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <title>{{ config('app.name', 'Laravel') }}</title>
-
         <!-- Bootstrap 5 -->
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" integrity="sha384-tViUnnbYAV00FLIhhi3v/dWt3Jxw4gZQcNoSCxCIFNJVCx7/D55/wXsrNIRANwdD" crossorigin="anonymous">
@@ -19,12 +18,87 @@
                 position: sticky;
                 top: 1rem;
             }
+            body.sidebar-collapsed #sidebarMenu {
+                flex: 0 0 72px;
+                max-width: 72px;
+                position: fixed;
+                top: 56px;
+                left: 0;
+                height: calc(100vh - 56px);
+                z-index: 1030;
+            }
+            body.sidebar-collapsed #sidebarMenu .fin-sidebar {
+                padding-left: 0.25rem;
+                padding-right: 0.25rem;
+            }
+            body.sidebar-collapsed main {
+                flex: 0 0 100%;
+                max-width: 95%;
+            }
+            :root {
+                --bs-primary: #329ad6;
+                --bs-primary-rgb: 50, 154, 214;
+                --bs-link-color: #329ad6;
+                --bs-link-hover-color: #2b86bd;
+            }
+            .btn-primary {
+                background-color: #329ad6;
+                border-color: #329ad6;
+            }
+            .btn-primary:hover,
+            .btn-primary:focus {
+                background-color: #2b86bd;
+                border-color: #2b86bd;
+            }
+            .btn-outline-primary {
+                color: #329ad6;
+                border-color: #329ad6;
+            }
+            .btn-outline-primary:hover,
+            .btn-outline-primary:focus {
+                background-color: #329ad6;
+                border-color: #329ad6;
+            }
+            .text-primary { color: #329ad6 !important; }
+            .bg-primary { background-color: #329ad6 !important; }
+            .border-primary { border-color: #329ad6 !important; }
+            .list-group-item.active {
+                background-color: #329ad6;
+                border-color: #329ad6;
+                color: #fff;
+            }
+            .list-group-item.active .text-muted {
+                color: rgba(255, 255, 255, 0.75) !important;
+            }
+            .card {
+                border: 1px solid #e2e8f0;
+                border-radius: 16px;
+                box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+            }
+            .card-header {
+                background: #fff;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .table {
+                --bs-table-bg: #fff;
+            }
+            .table thead th {
+                background: #f8fafc;
+                color: #475569;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                font-size: 0.75rem;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .table-hover tbody tr:hover {
+                background: #f8fafc;
+            }
         </style>
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="bg-light">
+    <body class="bg-light sidebar-collapsed">
         @php
             $routeName = \Illuminate\Support\Facades\Route::currentRouteName();
             $pageText = $routeName
@@ -45,13 +119,13 @@
 
             <div class="container-fluid">
                 <div class="row">
-                    @if (auth()->check() && auth()->user()->hasAnyRole(['admin', 'super-admin']))
-                        <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-white sidebar collapse show border-end">
+                    @if (auth()->check())
+                        <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-white sidebar border-end p-0">
                             @include('layouts.sidebar')
                         </nav>
                     @endif
 
-                    <main class="@if(auth()->check() && auth()->user()->hasAnyRole(['admin', 'super-admin'])) col-md-9 ms-sm-auto col-lg-10 px-md-4 @else col-12 px-3 @endif py-4">
+                    <main class="@if(auth()->check()) col-md-9 ms-sm-auto col-lg-10 px-md-4 @else col-12 px-3 @endif py-4">
                         @isset($header)
                             <div class="d-flex flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
                                 {{ $header }}

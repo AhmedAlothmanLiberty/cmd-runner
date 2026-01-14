@@ -23,11 +23,18 @@ class StoreAutomationRequest extends FormRequest
             'command' => ['required', 'string', 'max:255'],
             'cron_expression' => ['required', 'string', 'max:255'],
             'timezone' => ['nullable', 'timezone:all'],
-            'daily_time' => ['nullable', 'date_format:H:i'],
+            'daily_time' => ['nullable', 'date_format:H:i', 'required_if:schedule_mode,daily'],
             'is_active' => ['sometimes', 'boolean'],
             'timeout_seconds' => ['nullable', 'integer', 'min:1'],
             'run_via' => ['required', Rule::in(['artisan', 'later'])],
             'notify_on_fail' => ['sometimes', 'boolean'],
+            'schedule_mode' => ['required', Rule::in(['daily', 'custom'])],
+            'day_times' => ['sometimes', 'array'],
+            'day_times.*' => ['sometimes', 'array'],
+            'day_times.*.*' => ['nullable', 'date_format:H:i'],
+            'daily_times' => ['required_if:schedule_mode,daily', 'array'],
+            'daily_times.*' => ['nullable', 'date_format:H:i'],
+            'daily_time' => ['nullable', 'date_format:H:i'],
         ];
     }
 }

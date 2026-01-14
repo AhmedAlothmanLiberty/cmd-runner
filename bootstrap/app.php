@@ -7,12 +7,33 @@ use Illuminate\Foundation\Configuration\Middleware;
 return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([
         app_path('Console/Commands'),
+
+        // app commands
         \App\Console\Commands\TestAutomationCommand::class,
         \App\Console\Commands\RunAutomation::class,
-        \Cmd\Reports\Console\Commands\SyncBalances::class,
-        \Cmd\Reports\Console\Commands\SyncBalancesHistory::class,
-        \Cmd\Reports\Console\Commands\SeedCmdReportPermissions::class,
-        \Cmd\Reports\Console\Commands\TestDatabaseConnections::class,
+
+        // package commands (register only if the class exists)
+        ...array_values(array_filter([
+            \Cmd\Reports\Console\Commands\SyncBalances::class,
+            \Cmd\Reports\Console\Commands\SyncBalancesHistory::class,
+            \Cmd\Reports\Console\Commands\SeedCmdReportPermissions::class,
+            \Cmd\Reports\Console\Commands\TestDatabaseConnections::class,
+            \Cmd\Reports\Console\Commands\SyncFirstPaymentClearedDate::class,
+            \Cmd\Reports\Console\Commands\SyncDebtAccounts::class,
+            \Cmd\Reports\Console\Commands\SyncEnrollmentPlans::class,
+            \Cmd\Reports\Console\Commands\SyncFirstPaymentDate::class,
+            \Cmd\Reports\Console\Commands\SyncSubmittedDate::class,
+            \Cmd\Reports\Console\Commands\SyncTimeInProgram::class,
+            \Cmd\Reports\Console\Commands\UpdateEPFRates::class,
+            \Cmd\Reports\Console\Commands\SyncVerifiedDebts::class,
+            \Cmd\Reports\Console\Commands\SyncSettlementData::class,
+            \Cmd\Reports\Console\Commands\SyncSettledDebtsData::class,
+            \Cmd\Reports\Console\Commands\SyncEnrollmentStatus::class,
+            \Cmd\Reports\Console\Commands\SyncEPFData::class,
+
+
+
+        ], fn(string $c) => class_exists($c))),
     ])
     ->withRouting(
         web: __DIR__ . '/../routes/web.php',
@@ -26,6 +47,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'internal.basic' => \App\Http\Middleware\InternalBasicAuth::class,
 
+        ]);
+
+        $middleware->web(append: [
+            \App\Http\Middleware\TrackUserActivity::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

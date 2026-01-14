@@ -44,6 +44,13 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'last_seen_at' => 'datetime',
+            'last_login_at' => 'datetime',
         ];
+    }
+
+    public function ticketLevel(): int
+    {
+        return 1;
     }
 }
