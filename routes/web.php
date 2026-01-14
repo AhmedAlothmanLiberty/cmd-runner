@@ -3,6 +3,8 @@
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\PackageUpdateController;
 use App\Http\Controllers\Admin\TaskController;
+use App\Http\Controllers\Admin\EasyEngineJobController;
+use App\Http\Controllers\Admin\S3UploadJobController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AutomationController;
@@ -63,6 +65,20 @@ Route::middleware(['auth', 'role:super-admin'])
     ->group(function () {
         Route::resource('roles', \App\Http\Controllers\Admin\RoleManagementController::class)->except(['show']);
         Route::resource('permissions', \App\Http\Controllers\Admin\PermissionManagementController::class)->only(['index', 'store', 'destroy']);
+
+        Route::prefix('s3-upload-jobs')
+            ->name('s3-upload-jobs.')
+            ->group(function () {
+                Route::get('/', [S3UploadJobController::class, 'index'])->name('index');
+                Route::get('/{job}', [S3UploadJobController::class, 'show'])->name('show')->whereNumber('job');
+            });
+
+        Route::prefix('easyengine-jobs')
+            ->name('easyengine-jobs.')
+            ->group(function () {
+                Route::get('/', [EasyEngineJobController::class, 'index'])->name('index');
+                Route::get('/{job}', [EasyEngineJobController::class, 'show'])->name('show')->whereNumber('job');
+            });
 
         Route::prefix('package-updates')
             ->name('package-updates.')

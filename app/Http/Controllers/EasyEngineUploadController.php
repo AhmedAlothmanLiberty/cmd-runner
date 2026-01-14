@@ -18,69 +18,75 @@ class EasyEngineUploadController extends Controller
         return view('easyengine.upload');
     }
 
-public function upload(Request $request)
-{
-    $data = $request->validate([
-        'file'      => ['required', 'file', 'mimes:csv,txt', 'max:51200'],
-        'state'     => ['required', 'string', 'max:10'],
-        'drop_date' => ['required', 'date'],
-    ]);
+    public function upload(Request $request)
+    {
+        $data = $request->validate([
+            'file' => [
+                'required',
+                'file',
+                'max:1048576', // 1 GB
+                'mimetypes:text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ],
 
-    $file  = $request->file('file');
-    $date  = \Carbon\Carbon::parse($data['drop_date']);
-    $state = strtoupper(trim($data['state']));
+            'state'     => ['required', 'string', 'max:10'],
+            'drop_date' => ['required', 'date'],
+        ]);
 
-    $bucket = env('EE_S3_BUCKET');
-    if (!$bucket) abort(500, 'Missing EE_S3_BUCKET in .env');
+        $file  = $request->file('file');
+        $date  = \Carbon\Carbon::parse($data['drop_date']);
+        $state = strtoupper(trim($data['state']));
 
-    $safeOriginal = preg_replace('/[^A-Za-z0-9._-]+/', '_', $file->getClientOriginalName());
+        $bucket = env('EE_S3_BUCKET');
+        if (!$bucket) abort(500, 'Missing EE_S3_BUCKET in .env');
 
-    $dir = 'tmp/easyengine/' . now()->format('Ymd');
-    Storage::disk('local')->makeDirectory($dir);
+        $safeOriginal = preg_replace('/[^A-Za-z0-9._-]+/', '_', $file->getClientOriginalName());
 
-    $storedPath = $file->storeAs(
-        $dir,
-        now()->format('Ymd_His') . '_' . Str::random(8) . '_' . $safeOriginal,
-        'local'
-    );
+        $dir = 'tmp/easyengine/' . now()->format('Ymd');
+        Storage::disk('local')->makeDirectory($dir);
 
-    $fullPath = Storage::disk('local')->path($storedPath);
-    if (!is_file($fullPath)) abort(500, "Upload saved path missing: {$fullPath}");
+        $storedPath = $file->storeAs(
+            $dir,
+            now()->format('Ymd_His') . '_' . Str::random(8) . '_' . $safeOriginal,
+            'local'
+        );
 
-    $sha256 = hash_file('sha256', $fullPath);
+        $fullPath = Storage::disk('local')->path($storedPath);
+        if (!is_file($fullPath)) abort(500, "Upload saved path missing: {$fullPath}");
 
-    $baseNameNoExt  = pathinfo(basename($fullPath), PATHINFO_FILENAME);
-    $parquetName    = $baseNameNoExt . '.parquet';
+        $sha256 = hash_file('sha256', $fullPath);
 
-    $key = sprintf(
-        "inbound/intent/yyyy=%s/mm=%s/dd=%s/state=%s/%s",
-        $date->format('Y'),
-        $date->format('m'),
-        $date->format('d'),
-        $state,
-        $parquetName
-    );
+        $baseNameNoExt  = pathinfo(basename($fullPath), PATHINFO_FILENAME);
+        $parquetName    = $baseNameNoExt . '.parquet';
 
-    $job = S3UploadJob::create([
-        'uploader'      => $request->getUser(),
-        'request_ip'    => $request->ip(),
-        'original_name' => $file->getClientOriginalName(),
-        'stored_path'   => $storedPath,
-        'mime'          => $file->getMimeType(),
-        'size'          => $file->getSize(),
-        'sha256'        => $sha256,
-        'drop_date'     => $date->toDateString(),
-        'state'         => $state,
-        's3_bucket'     => $bucket,
-        's3_key'        => $key,
-        'status'        => S3UploadJob::STATUS_QUEUED, // add this const if missing
-        'meta'          => ['phase' => 'queued'],
-    ]);
+        $key = sprintf(
+            "inbound/intent/yyyy=%s/mm=%s/dd=%s/state=%s/%s",
+            $date->format('Y'),
+            $date->format('m'),
+            $date->format('d'),
+            $state,
+            $parquetName
+        );
 
-    EasyEngineProcessUpload::dispatch($job->id);
+        $job = S3UploadJob::create([
+            'uploader'      => $request->getUser(),
+            'request_ip'    => $request->ip(),
+            'original_name' => $file->getClientOriginalName(),
+            'stored_path'   => $storedPath,
+            'mime'          => $file->getMimeType(),
+            'size'          => $file->getSize(),
+            'sha256'        => $sha256,
+            'drop_date'     => $date->toDateString(),
+            'state'         => $state,
+            's3_bucket'     => $bucket,
+            's3_key'        => $key,
+            'status'        => S3UploadJob::STATUS_QUEUED, // add this const if missing
+            'meta'          => ['phase' => 'queued'],
+        ]);
 
-    return back()->with('ok', "Queued job #{$job->id}. It will upload parquet to s3://{$bucket}/{$key}");
-}
+        EasyEngineProcessUpload::dispatch($job->id);
+
+        return back()->with('ok', "Queued job #{$job->id}. It will upload parquet to s3://{$bucket}/{$key}");
+    }
 
     private function makeParquetPath(string $csvStoredPath, string $parquetFileName): string
     {

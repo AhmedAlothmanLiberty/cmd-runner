@@ -45,6 +45,22 @@
             'active' => request()->routeIs('admin.package-updates.*'),
             'icon' => 'arrow-repeat',
         ];
+
+        $links[] = [
+            'label' => 'S3 Upload Jobs',
+            'description' => 'Review S3 upload queue',
+            'href' => route('admin.s3-upload-jobs.index'),
+            'active' => request()->routeIs('admin.s3-upload-jobs.*'),
+            'icon' => 'cloud-upload',
+        ];
+
+        $links[] = [
+            'label' => 'EasyEngine Jobs',
+            'description' => 'Track EasyEngine processing',
+            'href' => route('admin.easyengine-jobs.index'),
+            'active' => request()->routeIs('admin.easyengine-jobs.*'),
+            'icon' => 'database',
+        ];
     }
 
     if (auth()->user()->hasAnyRole(['admin', 'automation', 'super-admin'])) {
