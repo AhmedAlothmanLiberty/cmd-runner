@@ -59,13 +59,13 @@ class ConvertAndUploadEasyEngineJob implements ShouldQueue
             'parquet_sha256' => $parquetSha,
         ]);
 
-        // ✅ build S3 key partition: /yyyy=YYYY/mm=MM/dd=DD/state=state/
+        // ✅ build S3 key partition: /day=YYYY_MM_DD/state=state/
         $d = ($job->drop_date ?? now())->toDateString();
-        [$Y,$m,$dd] = explode('-', $d);
+        $day = str_replace('-', '_', $d);
         $state = $job->state ?: 'NA';
 
         $prefix = trim(env('EE_S3_PREFIX', 'inbound/intent'), '/'); // inbound/intent
-        $keyDir = "{$prefix}/yyyy={$Y}/mm={$m}/dd={$dd}/state={$state}";
+        $keyDir = "{$prefix}/day={$day}/state={$state}";
         $filename = basename($parquetRel);
         $s3Key = "{$keyDir}/{$filename}";
 

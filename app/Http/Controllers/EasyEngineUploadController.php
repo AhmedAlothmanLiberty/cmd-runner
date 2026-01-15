@@ -66,11 +66,10 @@ class EasyEngineUploadController extends Controller
         $baseNameNoExt  = pathinfo(basename($fullPath), PATHINFO_FILENAME);
         $parquetName    = $baseNameNoExt . '.parquet';
 
+        $dayFolder = $date->format('Y_m_d');
         $key = sprintf(
-            "inbound/intent/yyyy=%s/mm=%s/dd=%s/state=%s/%s",
-            $date->format('Y'),
-            $date->format('m'),
-            $date->format('d'),
+            "inbound/intent/day=%s/state=%s/%s",
+            $dayFolder,
             $state,
             $parquetName
         );
