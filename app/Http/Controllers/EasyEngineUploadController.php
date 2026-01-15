@@ -41,15 +41,16 @@ class EasyEngineUploadController extends Controller
 
         $safeOriginal = preg_replace('/[^A-Za-z0-9._-]+/', '_', $file->getClientOriginalName());
 
-        // $dir = 'tmp/easyengine/' . now()->format('Ymd');
-        $dir = 'private/tmp/easyengine/' . now()->format('Ymd');
+        $dir = 'tmp/easyengine/' . now()->format('Ymd');
         Storage::disk('local')->makeDirectory($dir);
-        
+        Log::info('EE upload start', ['name'=>$safeOriginal, 'size'=>$file->getSize()]);
+
         $storedPath = $file->storeAs(
             $dir,
             now()->format('Ymd_His') . '_' . Str::random(8) . '_' . $safeOriginal,
             'local'
         );
+Log::info('EE upload stored', ['storedPath'=>$storedPath]);
 
         $fullPath = Storage::disk('local')->path($storedPath);
         if (!is_file($fullPath)) abort(500, "Upload saved path missing: {$fullPath}");
