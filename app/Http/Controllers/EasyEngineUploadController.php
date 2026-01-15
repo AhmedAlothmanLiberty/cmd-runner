@@ -41,9 +41,10 @@ class EasyEngineUploadController extends Controller
 
         $safeOriginal = preg_replace('/[^A-Za-z0-9._-]+/', '_', $file->getClientOriginalName());
 
-        $dir = 'tmp/easyengine/' . now()->format('Ymd');
+        // $dir = 'tmp/easyengine/' . now()->format('Ymd');
+        $dir = 'private/tmp/easyengine/' . now()->format('Ymd');
         Storage::disk('local')->makeDirectory($dir);
-
+        
         $storedPath = $file->storeAs(
             $dir,
             now()->format('Ymd_His') . '_' . Str::random(8) . '_' . $safeOriginal,
