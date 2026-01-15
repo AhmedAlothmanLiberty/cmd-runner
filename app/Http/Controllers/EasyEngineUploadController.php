@@ -44,6 +44,10 @@ class EasyEngineUploadController extends Controller
 
         $dir = 'tmp/easyengine/' . now()->format('Ymd');
         Storage::disk('local')->makeDirectory($dir);
+        $dirFullPath = Storage::disk('local')->path($dir);
+        if (is_dir($dirFullPath)) {
+            @chmod($dirFullPath, 0770);
+        }
         Log::info('EE upload start', ['name'=>$safeOriginal, 'size'=>$file->getSize()]);
 
         $storedPath = $file->storeAs(
@@ -55,6 +59,7 @@ class EasyEngineUploadController extends Controller
 
         $fullPath = Storage::disk('local')->path($storedPath);
         if (!is_file($fullPath)) abort(500, "Upload saved path missing: {$fullPath}");
+        @chmod($fullPath, 0660);
 
         $sha256 = hash_file('sha256', $fullPath);
 
