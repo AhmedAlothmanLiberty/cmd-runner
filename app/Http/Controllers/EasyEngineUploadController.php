@@ -6,6 +6,7 @@ use App\Models\S3UploadJob;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\Process\Process;
 use App\Jobs\EasyEngineProcessUpload;
@@ -50,7 +51,7 @@ class EasyEngineUploadController extends Controller
             now()->format('Ymd_His') . '_' . Str::random(8) . '_' . $safeOriginal,
             'local'
         );
-Log::info('EE upload stored', ['storedPath'=>$storedPath]);
+        Log::info('EE upload stored', ['storedPath'=>$storedPath]);
 
         $fullPath = Storage::disk('local')->path($storedPath);
         if (!is_file($fullPath)) abort(500, "Upload saved path missing: {$fullPath}");
