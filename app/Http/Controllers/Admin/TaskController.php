@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreTaskRequest;
 use App\Http\Requests\Admin\UpdateTaskRequest;
 use App\Models\Task;
+use App\Models\TaskAttachment;
 use App\Models\TaskLabel;
 use App\Models\User;
 use App\Notifications\TaskEventNotification;
@@ -13,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -183,6 +185,38 @@ class TaskController extends Controller
         return view('admin.tasks.show', compact('task'));
     }
 
+    public function previewAttachment(Request $request, Task $task, TaskAttachment $attachment)
+    {
+        $this->assertAttachmentAccess($request, $task, $attachment);
+
+        $mimeType = Storage::mimeType($attachment->file_path) ?? $attachment->mime_type;
+        $allowedMimeTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'image/avif',
+        ];
+
+        if (! $mimeType || ! in_array(strtolower($mimeType), $allowedMimeTypes, true)) {
+            abort(404);
+        }
+
+        return Storage::response($attachment->file_path, $attachment->file_name, [
+            'Content-Type' => $mimeType,
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
+    }
+
+    public function downloadAttachment(Request $request, Task $task, TaskAttachment $attachment)
+    {
+        $this->assertAttachmentAccess($request, $task, $attachment);
+
+        return Storage::download($attachment->file_path, $attachment->file_name);
+    }
+
     public function store(StoreTaskRequest $request): RedirectResponse
     {
         $data = $request->validated();
@@ -311,6 +345,22 @@ class TaskController extends Controller
         $filtered = array_intersect_key((array) $filters, array_flip($allowed));
 
         return array_filter($filtered, static fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function assertAttachmentAccess(Request $request, Task $task, TaskAttachment $attachment): void
+    {
+        $this->authorize('view', $task);
+        if ($task->isRestrictedStatus() && ! Task::canManageRestricted($request->user())) {
+            abort(403);
+        }
+
+        if ((int) $attachment->task_id !== (int) $task->id) {
+            abort(404);
+        }
+
+        if (! $attachment->file_path || ! Storage::exists($attachment->file_path)) {
+            abort(404);
+        }
     }
 
     private function storeAttachments(Task $task, Request $request): void

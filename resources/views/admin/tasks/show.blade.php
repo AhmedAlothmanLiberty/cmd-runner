@@ -59,6 +59,14 @@
                 border-left: 2px dashed #e2e8f0;
                 padding-left: 1.25rem;
             }
+            .ops-attachment-thumb {
+                width: 54px;
+                height: 54px;
+                object-fit: cover;
+                border-radius: 12px;
+                border: 1px solid #e2e8f0;
+                background: #f8fafc;
+            }
         </style>
     @endonce
 
@@ -188,19 +196,49 @@
                     @if ($task->attachments->isEmpty())
                         <div class="text-muted">No attachments yet.</div>
                     @else
+                        @php
+                            $previewableMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
+                        @endphp
                         <div class="list-group">
                             @foreach ($task->attachments as $attachment)
-                                <div class="list-group-item d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <div class="fw-semibold">{{ $attachment->file_name }}</div>
-                                        <small class="text-muted">
-                                            {{ $attachment->created_at->format('Y-m-d H:i') }}
-                                            @if ($attachment->file_size)
-                                                · {{ number_format($attachment->file_size / 1024, 1) }} KB
-                                            @endif
-                                        </small>
+                                @php
+                                    $mimeType = strtolower((string) $attachment->mime_type);
+                                    $canPreview = $mimeType !== '' && in_array($mimeType, $previewableMimeTypes, true);
+                                    $previewUrl = $canPreview
+                                        ? route('admin.tasks.attachments.preview', ['task' => $task, 'attachment' => $attachment])
+                                        : null;
+                                @endphp
+                                <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                                    <div class="d-flex align-items-center gap-3">
+                                        @if ($canPreview)
+                                            <a href="{{ $previewUrl }}" target="_blank" rel="noopener" class="d-inline-block">
+                                                <img src="{{ $previewUrl }}" alt="{{ $attachment->file_name }}" class="ops-attachment-thumb">
+                                            </a>
+                                        @endif
+                                        <div>
+                                            <div class="fw-semibold">{{ $attachment->file_name }}</div>
+                                            <small class="text-muted">
+                                                {{ $attachment->created_at->format('Y-m-d H:i') }}
+                                                @if ($attachment->file_size)
+                                                    · {{ number_format($attachment->file_size / 1024, 1) }} KB
+                                                @endif
+                                            </small>
+                                        </div>
                                     </div>
-                                    <small class="text-muted">{{ $attachment->mime_type ?? 'file' }}</small>
+                                    <div class="d-flex align-items-center gap-2 text-nowrap">
+                                        @if ($canPreview)
+                                            <a href="{{ $previewUrl }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye me-1"></i> View
+                                            </a>
+                                        @endif
+                                        <a
+                                            href="{{ route('admin.tasks.attachments.download', ['task' => $task, 'attachment' => $attachment]) }}"
+                                            class="btn btn-sm btn-outline-secondary"
+                                        >
+                                            <i class="bi bi-download me-1"></i> Download
+                                        </a>
+                                        <small class="text-muted">{{ $attachment->mime_type ?? 'file' }}</small>
+                                    </div>
                                 </div>
                             @endforeach
                         </div>

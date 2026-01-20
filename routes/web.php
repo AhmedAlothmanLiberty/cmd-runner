@@ -42,6 +42,14 @@ Route::middleware(['auth'])
             ->middleware('role:admin|super-admin')
             ->name('tasks.backlog');
         Route::get('tasks/{task}', [TaskController::class, 'show'])->name('tasks.show')->whereNumber('task');
+        Route::get('tasks/{task}/attachments/{attachment}/preview', [TaskController::class, 'previewAttachment'])
+            ->name('tasks.attachments.preview')
+            ->whereNumber('task')
+            ->whereNumber('attachment');
+        Route::get('tasks/{task}/attachments/{attachment}/download', [TaskController::class, 'downloadAttachment'])
+            ->name('tasks.attachments.download')
+            ->whereNumber('task')
+            ->whereNumber('attachment');
         Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status')->whereNumber('task');
         Route::post('tasks/{task}/comments', [TaskController::class, 'addComment'])->name('tasks.comments.store')->whereNumber('task');
     });

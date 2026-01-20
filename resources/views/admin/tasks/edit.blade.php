@@ -168,7 +168,15 @@
                                             @endif
                                         </small>
                                     </div>
-                                    <small class="text-muted">{{ $attachment->mime_type ?? 'file' }}</small>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <a
+                                            href="{{ route('admin.tasks.attachments.download', ['task' => $task, 'attachment' => $attachment]) }}"
+                                            class="btn btn-sm btn-outline-secondary"
+                                        >
+                                            <i class="bi bi-download me-1"></i> Download
+                                        </a>
+                                        <small class="text-muted">{{ $attachment->mime_type ?? 'file' }}</small>
+                                    </div>
                                 </div>
                             @endforeach
                         </div>
