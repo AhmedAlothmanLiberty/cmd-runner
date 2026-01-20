@@ -46,6 +46,10 @@ Route::middleware(['auth'])
             ->name('tasks.attachments.preview')
             ->whereNumber('task')
             ->whereNumber('attachment');
+        Route::delete('tasks/{task}/attachments/{attachment}', [TaskController::class, 'destroyAttachment'])
+            ->name('tasks.attachments.destroy')
+            ->whereNumber('task')
+            ->whereNumber('attachment');
         Route::get('tasks/{task}/attachments/{attachment}/download', [TaskController::class, 'downloadAttachment'])
             ->name('tasks.attachments.download')
             ->whereNumber('task')

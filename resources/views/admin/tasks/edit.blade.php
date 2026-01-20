@@ -175,6 +175,20 @@
                                         >
                                             <i class="bi bi-download me-1"></i> Download
                                         </a>
+                                        @can('update', $task)
+                                            <form
+                                                action="{{ route('admin.tasks.attachments.destroy', ['task' => $task, 'attachment' => $attachment]) }}"
+                                                method="POST"
+                                                class="d-inline"
+                                                onsubmit="return confirm('Delete this attachment?')"
+                                            >
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <i class="bi bi-trash me-1"></i> Delete
+                                                </button>
+                                            </form>
+                                        @endcan
                                         <small class="text-muted">{{ $attachment->mime_type ?? 'file' }}</small>
                                     </div>
                                 </div>

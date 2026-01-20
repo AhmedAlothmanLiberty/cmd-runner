@@ -10,6 +10,7 @@ use App\Models\TaskAttachment;
 use App\Models\TaskLabel;
 use App\Models\User;
 use App\Notifications\TaskEventNotification;
+use App\Notifications\TaskReopenedNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -217,6 +218,23 @@ class TaskController extends Controller
         return Storage::download($attachment->file_path, $attachment->file_name);
     }
 
+    public function destroyAttachment(Request $request, Task $task, TaskAttachment $attachment): RedirectResponse
+    {
+        $this->authorize('update', $task);
+
+        if ((int) $attachment->task_id !== (int) $task->id) {
+            abort(404);
+        }
+
+        if ($attachment->file_path && Storage::exists($attachment->file_path)) {
+            Storage::delete($attachment->file_path);
+        }
+
+        $attachment->delete();
+
+        return back()->with('status', 'Attachment deleted.');
+    }
+
     public function store(StoreTaskRequest $request): RedirectResponse
     {
         $data = $request->validated();
@@ -256,6 +274,7 @@ class TaskController extends Controller
         $this->authorize('update', $task);
         $data = $request->validated();
         $userId = auth()->id();
+        $previousStatus = $task->status;
 
         $data['updated_by'] = $userId;
         if ($data['status'] === 'completed') {
@@ -265,6 +284,10 @@ class TaskController extends Controller
         }
 
         $task->update(Arr::except($data, ['category_id', 'comment', 'attachments']));
+
+        if ($previousStatus !== Task::STATUS_REOPEN && $task->status === Task::STATUS_REOPEN) {
+            $this->notifyAssignedUserTaskReopened($task);
+        }
 
         $categoryId = $data['category_id'] ?? null;
         $this->syncLabels($task, $categoryId ? [$categoryId] : []);
@@ -307,6 +330,7 @@ class TaskController extends Controller
             'status' => ['required', Rule::in(Task::editStatuses($task))],
         ]);
 
+        $previousStatus = $task->status;
         $task->status = $validated['status'];
         $task->updated_by = auth()->id();
         $task->completed_at = $task->status === 'completed'
@@ -314,10 +338,14 @@ class TaskController extends Controller
             : null;
         $task->save();
 
+        if ($previousStatus !== Task::STATUS_REOPEN && $task->status === Task::STATUS_REOPEN) {
+            $this->notifyAssignedUserTaskReopened($task);
+        }
+
         $this->notifyTaskEvent($task, 'status_changed', [
             'status' => $task->status,
         ]);
-
+    
         if ($request->expectsJson()) {
             return response()->json(['status' => 'ok']);
         }
@@ -345,6 +373,25 @@ class TaskController extends Controller
         $filtered = array_intersect_key((array) $filters, array_flip($allowed));
 
         return array_filter($filtered, static fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function notifyAssignedUserTaskReopened(Task $task): void
+    {
+        if (! $task->assigned_to) {
+            return;
+        }
+
+        $assignedUser = $task->assignedTo;
+        if (! $assignedUser) {
+            return;
+        }
+
+        $actorId = auth()->id();
+        if ($actorId && (int) $assignedUser->id === (int) $actorId) {
+            return;
+        }
+
+        $assignedUser->notify(new TaskReopenedNotification($task, auth()->user()->name ?? null));
     }
 
     private function assertAttachmentAccess(Request $request, Task $task, TaskAttachment $attachment): void
