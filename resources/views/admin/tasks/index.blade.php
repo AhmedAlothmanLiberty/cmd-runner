@@ -67,22 +67,14 @@
                 background: #bbf7d0;
                 color: #166534;
             }
-            .status-cell--backlog .status-text {
-                background: #e2e8f0;
-                color: #475569;
-            }
-            .status-cell--deployed-s .status-text {
-                background: #e0f2fe;
-                color: #0c4a6e;
-            }
-            .status-cell--deployed-p .status-text {
-                background: #e2e8f0;
-                color: #1e293b;
-            }
-            .status-cell--reopen .status-text {
-                background: #fef3c7;
-                color: #92400e;
-            }
+	            .status-cell--backlog .status-text {
+	                background: #e2e8f0;
+	                color: #475569;
+	            }
+	            .status-cell--reopen .status-text {
+	                background: #fef3c7;
+	                color: #92400e;
+	            }
             .badge-soft {
                 border-radius: 999px;
                 padding: 0.25rem 0.6rem;
@@ -102,40 +94,68 @@
         </style>
     @endonce
 
-    <x-slot name="header">
-        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between w-100">
-            <div>
-                <h2 class="h4 mb-0">{{ $pageTitle ?? 'Tasks' }}</h2>
-                <small class="text-muted">{{ $pageSubtitle ?? 'Track work items and keep them moving.' }}</small>
-            </div>
-            <div class="mt-3 mt-md-0 d-flex gap-2">
-                @if (auth()->user()?->hasAnyRole(['admin', 'super-admin']))
-                    @if (! ($isBacklog ?? false))
-                        <a href="{{ route('admin.tasks.backlog') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-inbox me-1"></i> Backlog
-                        </a>
-                    @else
-                        <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-list-check me-1"></i> All Tasks
-                        </a>
-                    @endif
-                @endif
-                @can('manage-tasks')
-                    <a href="{{ route('admin.tasks.create', request()->query()) }}" class="btn btn-primary">
-                        <i class="bi bi-plus-lg me-1"></i> New Task
-                    </a>
-                @endcan
-            </div>
-        </div>
-    </x-slot>
+	    <x-slot name="header">
+	        @php
+	            $returnTo = ($isBacklog ?? false) ? 'backlog' : (($isAllTasks ?? false) ? 'all' : 'index');
+	        @endphp
+	        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between w-100">
+	            <div>
+	                <h2 class="h4 mb-0">{{ $pageTitle ?? 'Tasks' }}</h2>
+	                <small class="text-muted">{{ $pageSubtitle ?? 'Track work items and keep them moving.' }}</small>
+	            </div>
+	            <div class="mt-3 mt-md-0 d-flex gap-2">
+	                @if ($isBacklog ?? false)
+	                    @can('view-tasks')
+	                        <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary">
+	                            <i class="bi bi-list-check me-1"></i> Tasks
+	                        </a>
+	                    @endcan
+	                @else
+	                    @can('view-backlog')
+	                        <a href="{{ route('admin.tasks.backlog') }}" class="btn btn-outline-secondary">
+	                            <i class="bi bi-inbox me-1"></i> Backlog
+	                        </a>
+	                    @endcan
+	                @endif
 
-    <div class="card shadow-sm border-0">
-        <div class="card-body p-0">
-            <div class="border-bottom bg-light px-3 py-3">
-                <form method="GET" action="{{ route('admin.tasks.index') }}" class="row g-2 align-items-end">
-                    <div class="col-12 col-md-5 col-lg-4">
-                        <label class="form-label mb-1">Search</label>
-                        <input
+	                @if (! ($isAllTasks ?? false))
+	                    @can('view-all-tasks')
+	                        <a href="{{ route('admin.tasks.all') }}" class="btn btn-outline-secondary">
+	                            <i class="bi bi-collection me-1"></i> All Tasks
+	                        </a>
+	                    @endcan
+	                @else
+	                    @can('view-tasks')
+	                        <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary">
+	                            <i class="bi bi-list-check me-1"></i> Tasks
+	                        </a>
+	                    @endcan
+	                @endif
+
+	                @if (($isAllTasks ?? false) && isset($exportUrl))
+	                    @can('export-tasks-csv')
+	                        <a href="{{ $exportUrl }}" class="btn btn-outline-secondary">
+	                            <i class="bi bi-download me-1"></i> Export CSV
+	                        </a>
+	                    @endcan
+	                @endif
+
+	                @can('create', \App\Models\Task::class)
+	                    <a href="{{ route('admin.tasks.create', array_merge(request()->query(), ['return_to' => $returnTo])) }}" class="btn btn-primary">
+	                        <i class="bi bi-plus-lg me-1"></i> New Task
+	                    </a>
+	                @endcan
+	            </div>
+	        </div>
+	    </x-slot>
+
+	    <div class="card shadow-sm border-0">
+	        <div class="card-body p-0">
+	            <div class="border-bottom bg-light px-3 py-3">
+	                <form method="GET" action="{{ $filterAction ?? route('admin.tasks.index') }}" class="row g-2 align-items-end">
+	                    <div class="col-12 col-md-5 col-lg-4">
+	                        <label class="form-label mb-1">Search</label>
+	                        <input
                             type="text"
                             name="search"
                             class="form-control"
@@ -143,16 +163,15 @@
                             placeholder="Title or description"
                         />
                     </div>
-                    <div class="col-6 col-md-3 col-lg-2">
-                        <label class="form-label mb-1">Status</label>
-                        <select name="status" class="form-select">
-                            <option value="">All</option>
-                            @php $statusOptions = $statusOptions ?? \App\Models\Task::visibleStatusLabels(auth()->user()); @endphp
-                            @foreach ($statusOptions as $value => $label)
-                                <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+	                    <div class="col-6 col-md-3 col-lg-2">
+	                        <label class="form-label mb-1">Status</label>
+	                        <select name="status" class="form-select">
+	                            <option value="">All</option>
+	                            @foreach ($statusOptions as $value => $label)
+	                                <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
+	                            @endforeach
+	                        </select>
+	                    </div>
                     <div class="col-6 col-md-3 col-lg-2">
                         <label class="form-label mb-1">Category</label>
                         <select name="category_id" class="form-select">
@@ -197,15 +216,15 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-12 col-md-auto d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-funnel me-1"></i> Filter
-                        </button>
-                        <a href="{{ route('admin.tasks.index') }}" class="btn btn-outline-secondary">
-                            Reset
-                        </a>
-                    </div>
-                </form>
+	                    <div class="col-12 col-md-auto d-flex gap-2">
+	                        <button type="submit" class="btn btn-primary">
+	                            <i class="bi bi-funnel me-1"></i> Filter
+	                        </button>
+	                        <a href="{{ $resetUrl ?? route('admin.tasks.index') }}" class="btn btn-outline-secondary">
+	                            Reset
+	                        </a>
+	                    </div>
+	                </form>
             </div>
 
             @if (session('status'))
@@ -236,13 +255,13 @@
                                 <td class="text-muted fw-semibold">
                                     {{ $loop->iteration + ($tasks->firstItem() ?? 0) - 1 }}
                                 </td>
-                                <td>
-                                    <div class="d-flex flex-column">
-                                        <a class="title text-decoration-none" href="{{ route('admin.tasks.show', array_merge(['task' => $task], request()->query())) }}">
-                                            {{ $task->title }}
-                                        </a>
-                                        {{-- @if ($task->description)
-                                            <span class="subtext">{{ \Illuminate\Support\Str::limit($task->description, 80) }}</span>
+	                                <td>
+	                                    <div class="d-flex flex-column">
+	                                        <a class="title text-decoration-none" href="{{ route('admin.tasks.show', array_merge(['task' => $task], request()->query(), ['return_to' => $returnTo])) }}">
+	                                            {{ $task->title }}
+	                                        </a>
+	                                        {{-- @if ($task->description)
+	                                            <span class="subtext">{{ \Illuminate\Support\Str::limit($task->description, 80) }}</span>
                                         @endif --}}
                                     </div>
                                 </td>
@@ -289,18 +308,20 @@
                                 <td class="small text-muted text-nowrap">
                                     {{ $task->updated_at ? $task->updated_at->diffForHumans() : '—' }}
                                 </td>
-                                <td class="text-end text-nowrap">
-                                    @can('update', $task)
-                                        <div class="dropdown">
-                                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                                <i class="bi bi-three-dots"></i>
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li><a class="dropdown-item" href="{{ route('admin.tasks.edit', array_merge(['task' => $task], request()->query())) }}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
-                                                @can('delete', $task)
-                                                    <li>
-                                                        <form action="{{ route('admin.tasks.destroy', $task) }}" method="POST" onsubmit="return confirm('Delete this task?')">
-                                                            @csrf
+	                                <td class="text-end text-nowrap">
+	                                    @if (auth()->user()?->can('update', $task) || auth()->user()?->can('delete', $task))
+	                                        <div class="dropdown">
+	                                            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+	                                                <i class="bi bi-three-dots"></i>
+	                                            </button>
+	                                            <ul class="dropdown-menu dropdown-menu-end">
+	                                                @can('update', $task)
+	                                                    <li><a class="dropdown-item" href="{{ route('admin.tasks.edit', array_merge(['task' => $task], request()->query(), ['return_to' => $returnTo])) }}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+	                                                @endcan
+	                                                @can('delete', $task)
+	                                                    <li>
+	                                                        <form action="{{ route('admin.tasks.destroy', $task) }}" method="POST" onsubmit="return confirm('Delete this task?')">
+	                                                            @csrf
                                                             @method('DELETE')
                                                             <button type="submit" class="dropdown-item text-danger">
                                                                 <i class="bi bi-trash me-2"></i>Delete
@@ -310,12 +331,12 @@
                                                 @endcan
                                             </ul>
                                         </div>
-                                    @else
-                                        <span class="text-muted">—</span>
-                                    @endcan
-                                </td>
-                            </tr>
-                        @empty
+	                                    @else
+	                                        <span class="text-muted">—</span>
+	                                    @endif
+	                                </td>
+	                            </tr>
+	                        @empty
                             <tr>
                                 <td colspan="10" class="text-center text-muted py-4">No tasks yet.</td>
                             </tr>

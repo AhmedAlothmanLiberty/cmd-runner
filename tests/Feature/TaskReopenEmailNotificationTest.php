@@ -6,6 +6,7 @@ use App\Models\Task;
 use App\Models\User;
 use Cmd\Reports\Services\EmailSenderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -18,6 +19,8 @@ class TaskReopenEmailNotificationTest extends TestCase
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
         $adminRole = Role::findOrCreate('admin');
+        Permission::findOrCreate('change-task-status');
+        $adminRole->givePermissionTo('change-task-status');
 
         $actor = User::factory()->create();
         $actor->assignRole($adminRole);

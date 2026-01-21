@@ -37,25 +37,68 @@ Route::middleware(['auth'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
-        Route::get('tasks', [TaskController::class, 'index'])->name('tasks.index');
+        Route::get('tasks', [TaskController::class, 'index'])
+            ->middleware('permission:view-tasks|manage-tasks')
+            ->name('tasks.index');
         Route::get('tasks/backlog', [TaskController::class, 'backlog'])
-            ->middleware('role:admin|super-admin')
+            ->middleware('permission:view-backlog|manage-tasks')
             ->name('tasks.backlog');
-        Route::get('tasks/{task}', [TaskController::class, 'show'])->name('tasks.show')->whereNumber('task');
+        Route::get('tasks/all', [TaskController::class, 'all'])
+            ->middleware('permission:view-all-tasks|manage-tasks')
+            ->name('tasks.all');
+        Route::get('tasks/all/export', [TaskController::class, 'exportAllCsv'])
+            ->middleware('permission:view-all-tasks|manage-tasks')
+            ->middleware('permission:export-tasks-csv|manage-tasks')
+            ->name('tasks.all.export');
+        Route::get('tasks/create', [TaskController::class, 'create'])
+            ->middleware('permission:create-task|manage-tasks')
+            ->name('tasks.create');
+        Route::post('tasks', [TaskController::class, 'store'])
+            ->middleware('permission:create-task|manage-tasks')
+            ->name('tasks.store');
+        Route::get('tasks/{task}', [TaskController::class, 'show'])
+            ->middleware('permission:view-tasks|view-backlog|view-all-tasks|manage-tasks')
+            ->name('tasks.show')
+            ->whereNumber('task');
+        Route::get('tasks/{task}/edit', [TaskController::class, 'edit'])
+            ->middleware('permission:update-task|manage-tasks')
+            ->name('tasks.edit')
+            ->whereNumber('task');
+        Route::put('tasks/{task}', [TaskController::class, 'update'])
+            ->middleware('permission:update-task|manage-tasks')
+            ->name('tasks.update')
+            ->whereNumber('task');
+        Route::delete('tasks/{task}', [TaskController::class, 'destroy'])
+            ->middleware('permission:delete-task|manage-tasks')
+            ->name('tasks.destroy')
+            ->whereNumber('task');
         Route::get('tasks/{task}/attachments/{attachment}/preview', [TaskController::class, 'previewAttachment'])
+            ->middleware('permission:download-task-attachments|manage-tasks')
             ->name('tasks.attachments.preview')
             ->whereNumber('task')
             ->whereNumber('attachment');
+        Route::post('tasks/{task}/attachments', [TaskController::class, 'storeTaskAttachments'])
+            ->middleware('permission:upload-task-attachments|manage-tasks')
+            ->name('tasks.attachments.store')
+            ->whereNumber('task');
         Route::delete('tasks/{task}/attachments/{attachment}', [TaskController::class, 'destroyAttachment'])
+            ->middleware('permission:delete-task-attachments|manage-tasks')
             ->name('tasks.attachments.destroy')
             ->whereNumber('task')
             ->whereNumber('attachment');
         Route::get('tasks/{task}/attachments/{attachment}/download', [TaskController::class, 'downloadAttachment'])
+            ->middleware('permission:download-task-attachments|manage-tasks')
             ->name('tasks.attachments.download')
             ->whereNumber('task')
             ->whereNumber('attachment');
-        Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status')->whereNumber('task');
-        Route::post('tasks/{task}/comments', [TaskController::class, 'addComment'])->name('tasks.comments.store')->whereNumber('task');
+        Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])
+            ->middleware('permission:change-task-status|manage-tasks')
+            ->name('tasks.status')
+            ->whereNumber('task');
+        Route::post('tasks/{task}/comments', [TaskController::class, 'addComment'])
+            ->middleware('permission:comment-task|manage-tasks')
+            ->name('tasks.comments.store')
+            ->whereNumber('task');
     });
 
 Route::middleware('auth')->group(function () {
@@ -63,13 +106,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
 });
-
-Route::middleware(['auth', 'permission:manage-tasks'])
-    ->prefix('admin')
-    ->name('admin.')
-    ->group(function () {
-        Route::resource('tasks', TaskController::class)->only(['create', 'store', 'edit', 'update', 'destroy']);
-    });
 
 Route::middleware(['auth', 'role:super-admin'])
     ->prefix('admin')

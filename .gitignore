@@ -30,3 +30,4 @@ __pycache__/
 storage/logs/
 /database/seeders/AutomationSeeder.php
 /screenshoots
+/TODO.md

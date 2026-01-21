@@ -18,6 +18,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TaskController extends Controller
 {
@@ -26,7 +27,7 @@ class TaskController extends Controller
         $user = $request->user();
         $query = Task::query()
             ->with(['assignedTo', 'createdBy', 'updatedBy', 'labels'])
-            ->visibleTo($user);
+            ->standardList();
 
         $search = trim((string) $request->input('search', ''));
         $status = $request->input('status');
@@ -46,7 +47,7 @@ class TaskController extends Controller
             });
         }
 
-        if (in_array($status, Task::allowedStatusesFor($user), true)) {
+        if (in_array($status, Task::standardStatuses(), true)) {
             $query->where('status', $status);
         }
 
@@ -81,21 +82,25 @@ class TaskController extends Controller
 
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
         $categories = TaskLabel::query()->orderBy('name')->get(['id', 'name', 'color']);
-        $statusOptions = Task::visibleStatusLabels($user);
+        $statusOptions = Task::standardStatusLabels();
 
-        return view('admin.tasks.index', compact('tasks', 'filters', 'users', 'categories', 'statusOptions', 'perPageOptions'));
+        return view('admin.tasks.index', [
+            'tasks' => $tasks,
+            'filters' => $filters,
+            'users' => $users,
+            'categories' => $categories,
+            'statusOptions' => $statusOptions,
+            'perPageOptions' => $perPageOptions,
+            'filterAction' => route('admin.tasks.index'),
+            'resetUrl' => route('admin.tasks.index'),
+        ]);
     }
 
     public function backlog(Request $request): View
     {
-        $user = $request->user();
-        if (! Task::canManageRestricted($user)) {
-            abort(403);
-        }
-
         $query = Task::query()
             ->with(['assignedTo', 'createdBy', 'updatedBy', 'labels'])
-            ->backlog();
+            ->backlogList();
 
         $search = trim((string) $request->input('search', ''));
         $status = $request->input('status');
@@ -115,7 +120,7 @@ class TaskController extends Controller
             });
         }
 
-        if (in_array($status, Task::restrictedStatuses(), true)) {
+        if ($status !== null && $status !== '') {
             $query->where('status', $status);
         }
 
@@ -150,7 +155,7 @@ class TaskController extends Controller
 
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
         $categories = TaskLabel::query()->orderBy('name')->get(['id', 'name', 'color']);
-        $statusOptions = Task::backlogStatusLabels();
+        $statusOptions = Task::statusLabels();
 
         return view('admin.tasks.index', [
             'tasks' => $tasks,
@@ -160,15 +165,180 @@ class TaskController extends Controller
             'statusOptions' => $statusOptions,
             'perPageOptions' => $perPageOptions,
             'pageTitle' => 'Backlog',
-            'pageSubtitle' => 'On hold or deployed tasks.',
-            'backLink' => route('admin.tasks.index'),
-            'backLinkLabel' => 'All tasks',
+            'pageSubtitle' => 'Unassigned and backlog tasks.',
             'isBacklog' => true,
+            'filterAction' => route('admin.tasks.backlog'),
+            'resetUrl' => route('admin.tasks.backlog'),
+        ]);
+    }
+
+    public function all(Request $request): View
+    {
+        $query = Task::query()
+            ->with(['assignedTo', 'createdBy', 'updatedBy', 'labels']);
+
+        $search = trim((string) $request->input('search', ''));
+        $status = $request->input('status');
+        $priority = $request->input('priority');
+        $assignedTo = $request->input('assigned_to');
+        $categoryId = $request->input('category_id');
+        $perPage = $request->input('per_page', '15');
+        $perPageOptions = ['15', '25', '50', 'all'];
+        if (! in_array((string) $perPage, $perPageOptions, true)) {
+            $perPage = '15';
+        }
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search): void {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        if ($status !== null && $status !== '') {
+            $query->where('status', $status);
+        }
+
+        if (in_array($priority, ['low', 'medium', 'high'], true)) {
+            $query->where('priority', $priority);
+        }
+
+        if (! empty($assignedTo)) {
+            $query->where('assigned_to', $assignedTo);
+        }
+
+        if (! empty($categoryId)) {
+            $query->whereHas('labels', function ($q) use ($categoryId): void {
+                $q->where('task_labels.id', $categoryId);
+            });
+        }
+
+        $perPageValue = $perPage === 'all' ? max(1, (int) $query->count()) : (int) $perPage;
+        $tasks = $query
+            ->orderByDesc('updated_at')
+            ->paginate($perPageValue)
+            ->appends($request->query());
+
+        $filters = [
+            'search' => $search,
+            'status' => $status,
+            'priority' => $priority,
+            'assigned_to' => $assignedTo,
+            'category_id' => $categoryId,
+            'per_page' => (string) $perPage,
+        ];
+
+        $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
+        $categories = TaskLabel::query()->orderBy('name')->get(['id', 'name', 'color']);
+
+        $distinctStatuses = Task::query()->select('status')->distinct()->pluck('status')->filter()->values();
+        $statusOptions = Task::statusLabels();
+        foreach ($distinctStatuses as $distinctStatus) {
+            if (! array_key_exists($distinctStatus, $statusOptions)) {
+                $statusOptions[$distinctStatus] = str_replace(['_', '-'], ' ', $distinctStatus);
+            }
+        }
+
+        return view('admin.tasks.index', [
+            'tasks' => $tasks,
+            'filters' => $filters,
+            'users' => $users,
+            'categories' => $categories,
+            'statusOptions' => $statusOptions,
+            'perPageOptions' => $perPageOptions,
+            'pageTitle' => 'All Tasks',
+            'pageSubtitle' => 'Everything, including backlog and unassigned tasks.',
+            'isAllTasks' => true,
+            'filterAction' => route('admin.tasks.all'),
+            'resetUrl' => route('admin.tasks.all'),
+            'exportUrl' => route('admin.tasks.all.export', $request->query()),
+        ]);
+    }
+
+    public function exportAllCsv(Request $request): StreamedResponse
+    {
+        $query = Task::query()
+            ->with(['assignedTo', 'createdBy', 'updatedBy', 'labels']);
+
+        $search = trim((string) $request->input('search', ''));
+        $status = $request->input('status');
+        $priority = $request->input('priority');
+        $assignedTo = $request->input('assigned_to');
+        $categoryId = $request->input('category_id');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search): void {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        if ($status !== null && $status !== '') {
+            $query->where('status', $status);
+        }
+
+        if (in_array($priority, ['low', 'medium', 'high'], true)) {
+            $query->where('priority', $priority);
+        }
+
+        if (! empty($assignedTo)) {
+            $query->where('assigned_to', $assignedTo);
+        }
+
+        if (! empty($categoryId)) {
+            $query->whereHas('labels', function ($q) use ($categoryId): void {
+                $q->where('task_labels.id', $categoryId);
+            });
+        }
+
+        $fileName = 'all-tasks-' . now()->format('Y-m-d-His') . '.csv';
+
+        return response()->streamDownload(function () use ($query): void {
+            $handle = fopen('php://output', 'w');
+
+            fputcsv($handle, [
+                'id',
+                'title',
+                'status',
+                'priority',
+                'assigned_to',
+                'reporter',
+                'due_at',
+                'created_at',
+                'updated_at',
+                'category',
+            ]);
+
+            $query
+                ->orderBy('id')
+                ->chunk(500, function ($tasks) use ($handle): void {
+                    foreach ($tasks as $task) {
+                        $category = $task->labels->first();
+
+                        fputcsv($handle, [
+                            $task->id,
+                            $task->title,
+                            $task->status,
+                            $task->priority,
+                            $task->assignedTo?->name,
+                            $task->createdBy?->name,
+                            $task->due_at?->toDateTimeString(),
+                            $task->created_at?->toDateTimeString(),
+                            $task->updated_at?->toDateTimeString(),
+                            $category?->name,
+                        ]);
+                    }
+                });
+
+            fclose($handle);
+        }, $fileName, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }
 
     public function create(): View
     {
+        $this->authorize('create', Task::class);
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
 
         $categories = TaskLabel::query()->orderBy('name')->get();
@@ -188,7 +358,8 @@ class TaskController extends Controller
 
     public function previewAttachment(Request $request, Task $task, TaskAttachment $attachment)
     {
-        $this->assertAttachmentAccess($request, $task, $attachment);
+        $this->authorize('downloadAttachments', $task);
+        $this->assertAttachmentExists($task, $attachment);
 
         $mimeType = Storage::mimeType($attachment->file_path) ?? $attachment->mime_type;
         $allowedMimeTypes = [
@@ -213,14 +384,15 @@ class TaskController extends Controller
 
     public function downloadAttachment(Request $request, Task $task, TaskAttachment $attachment)
     {
-        $this->assertAttachmentAccess($request, $task, $attachment);
+        $this->authorize('downloadAttachments', $task);
+        $this->assertAttachmentExists($task, $attachment);
 
         return Storage::download($attachment->file_path, $attachment->file_name);
     }
 
     public function destroyAttachment(Request $request, Task $task, TaskAttachment $attachment): RedirectResponse
     {
-        $this->authorize('update', $task);
+        $this->authorize('deleteAttachments', $task);
 
         if ((int) $attachment->task_id !== (int) $task->id) {
             abort(404);
@@ -235,10 +407,29 @@ class TaskController extends Controller
         return back()->with('status', 'Attachment deleted.');
     }
 
+    public function storeTaskAttachments(Request $request, Task $task): RedirectResponse
+    {
+        $this->authorize('uploadAttachments', $task);
+
+        $request->validate([
+            'attachments' => ['required', 'array'],
+            'attachments.*' => ['file', 'max:5120'],
+        ]);
+
+        $this->storeAttachments($task, $request);
+
+        return back()->with('status', 'Attachments uploaded.');
+    }
+
     public function store(StoreTaskRequest $request): RedirectResponse
     {
+        $this->authorize('create', Task::class);
         $data = $request->validated();
         $userId = auth()->id();
+
+        if (! empty($data['assigned_to'])) {
+            $this->authorize('assign', Task::make());
+        }
 
         $data['created_by'] = $userId;
         $data['updated_by'] = $userId;
@@ -248,12 +439,22 @@ class TaskController extends Controller
 
         $categoryId = $data['category_id'] ?? null;
         $this->syncLabels($task, $categoryId ? [$categoryId] : []);
+
+        if ($request->hasFile('attachments')) {
+            $this->authorize('uploadAttachments', $task);
+        }
         $this->storeAttachments($task, $request);
+
+        if (trim((string) $request->input('comment')) !== '') {
+            $this->authorize('comment', $task);
+        }
         $this->storeComment($task, $request->input('comment'), $userId);
         $this->notifyTaskEvent($task, 'new_task');
 
         $redirectFilters = $this->extractReturnFilters($request);
-        return redirect()->route('admin.tasks.index', $redirectFilters)->with('status', 'Task created.');
+        return redirect()
+            ->route($this->returnRouteName($request), $redirectFilters)
+            ->with('status', 'Task created.');
     }
 
     public function edit(Task $task): View
@@ -275,12 +476,21 @@ class TaskController extends Controller
         $data = $request->validated();
         $userId = auth()->id();
         $previousStatus = $task->status;
+        $previousAssignedTo = $task->assigned_to;
 
         $data['updated_by'] = $userId;
         if ($data['status'] === 'completed') {
             $data['completed_at'] = $task->completed_at ?? now();
         } else {
             $data['completed_at'] = null;
+        }
+
+        if (($data['status'] ?? null) !== $previousStatus) {
+            $this->authorize('changeStatus', $task);
+        }
+
+        if (array_key_exists('assigned_to', $data) && ($data['assigned_to'] ?? null) !== $previousAssignedTo) {
+            $this->authorize('assign', $task);
         }
 
         $task->update(Arr::except($data, ['category_id', 'comment', 'attachments']));
@@ -291,20 +501,27 @@ class TaskController extends Controller
 
         $categoryId = $data['category_id'] ?? null;
         $this->syncLabels($task, $categoryId ? [$categoryId] : []);
+
+        if ($request->hasFile('attachments')) {
+            $this->authorize('uploadAttachments', $task);
+        }
         $this->storeAttachments($task, $request);
+
+        if (trim((string) $request->input('comment')) !== '') {
+            $this->authorize('comment', $task);
+        }
         $this->storeComment($task, $request->input('comment'), $userId);
         $this->notifyTaskEvent($task, 'task_updated');
 
         $redirectFilters = $this->extractReturnFilters($request);
-        return redirect()->route('admin.tasks.index', $redirectFilters)->with('status', 'Task updated.');
+        return redirect()
+            ->route($this->returnRouteName($request), $redirectFilters)
+            ->with('status', 'Task updated.');
     }
 
     public function addComment(Request $request, Task $task): RedirectResponse
     {
-        $this->authorize('view', $task);
-        if ($task->isRestrictedStatus() && ! Task::canManageRestricted($request->user())) {
-            abort(403);
-        }
+        $this->authorize('comment', $task);
 
         $data = $request->validate([
             'comment' => ['required', 'string'],
@@ -324,7 +541,7 @@ class TaskController extends Controller
 
     public function updateStatus(Request $request, Task $task): JsonResponse|RedirectResponse
     {
-        $this->authorize('update', $task);
+        $this->authorize('changeStatus', $task);
 
         $validated = $request->validate([
             'status' => ['required', Rule::in(Task::editStatuses($task))],
@@ -375,6 +592,17 @@ class TaskController extends Controller
         return array_filter($filtered, static fn ($value) => $value !== null && $value !== '');
     }
 
+    private function returnRouteName(Request $request): string
+    {
+        $returnTo = (string) $request->input('return_to', '');
+
+        return match ($returnTo) {
+            'backlog' => 'admin.tasks.backlog',
+            'all' => 'admin.tasks.all',
+            default => 'admin.tasks.index',
+        };
+    }
+
     private function notifyAssignedUserTaskReopened(Task $task): void
     {
         if (! $task->assigned_to) {
@@ -394,13 +622,8 @@ class TaskController extends Controller
         $assignedUser->notify(new TaskReopenedNotification($task, auth()->user()->name ?? null));
     }
 
-    private function assertAttachmentAccess(Request $request, Task $task, TaskAttachment $attachment): void
+    private function assertAttachmentExists(Task $task, TaskAttachment $attachment): void
     {
-        $this->authorize('view', $task);
-        if ($task->isRestrictedStatus() && ! Task::canManageRestricted($request->user())) {
-            abort(403);
-        }
-
         if ((int) $attachment->task_id !== (int) $task->id) {
             abort(404);
         }

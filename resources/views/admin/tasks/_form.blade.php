@@ -4,6 +4,7 @@
 @endphp
 
 <div class="row g-3">
+    <input type="hidden" name="return_to" value="{{ request()->input('return_to', '') }}">
     <input type="hidden" name="return_filters[search]" value="{{ $returnFilters['search'] ?? '' }}">
     <input type="hidden" name="return_filters[status]" value="{{ $returnFilters['status'] ?? '' }}">
     <input type="hidden" name="return_filters[priority]" value="{{ $returnFilters['priority'] ?? '' }}">
@@ -37,15 +38,21 @@
 
     <div class="col-12 col-md-4">
         <label class="form-label" for="status">Status</label>
-        <select name="status" id="status" class="form-select @error('status') is-invalid @enderror">
-            @php
-                $statusValue = old('status', $task->status ?? \App\Models\Task::STATUS_TODO);
-                $statusOptions = $statusOptions ?? \App\Models\Task::formStatusLabels();
-            @endphp
-            @foreach ($statusOptions as $value => $label)
-                <option value="{{ $value }}" @selected($statusValue === $value)>{{ $label }}</option>
-            @endforeach
-        </select>
+        @php
+            $statusValue = old('status', $task->status ?? \App\Models\Task::STATUS_TODO);
+            $statusOptions = $statusOptions ?? \App\Models\Task::formStatusLabels();
+            $canChangeStatus = $task ? auth()->user()?->can('changeStatus', $task) : true;
+        @endphp
+        @if (! $canChangeStatus)
+            <input type="hidden" name="status" value="{{ $statusValue }}">
+            <input type="text" class="form-control" value="{{ $statusOptions[$statusValue] ?? $statusValue }}" disabled>
+        @else
+            <select name="status" id="status" class="form-select @error('status') is-invalid @enderror">
+                @foreach ($statusOptions as $value => $label)
+                    <option value="{{ $value }}" @selected($statusValue === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+        @endif
         @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
@@ -72,19 +79,37 @@
         @error('due_at')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
-    <div class="col-12 col-md-6">
-        <label class="form-label" for="assigned_to">Assigned to</label>
-        <select name="assigned_to" id="assigned_to" class="form-select @error('assigned_to') is-invalid @enderror">
-            <option value="">Unassigned</option>
-            @foreach ($users as $user)
-                <option
-                    value="{{ $user->id }}"
-                    @selected((string) old('assigned_to', $task->assigned_to ?? '') === (string) $user->id)
-                >
-                    {{ $user->name }} ({{ $user->email }})
-                </option>
-            @endforeach
-        </select>
+	    <div class="col-12 col-md-6">
+	        <label class="form-label" for="assigned_to">Assigned to</label>
+	        @php
+	            $assignedToValue = (string) old('assigned_to', $task ? ($task->assigned_to ?? '') : '');
+	            $canAssign = $task ? auth()->user()?->can('assign', $task) : auth()->user()?->can('assign-task');
+	        @endphp
+	        @if (! $canAssign)
+	            @php
+	                if (! $task) {
+	                    $assignedToValue = '';
+	                }
+	            @endphp
+	            <input type="hidden" name="assigned_to" value="{{ $assignedToValue }}">
+	            @php
+	                $assignedUser = $task?->assignedTo;
+	                $assignedLabel = $assignedUser ? ($assignedUser->name . ' (' . $assignedUser->email . ')') : 'Unassigned';
+            @endphp
+            <input type="text" class="form-control" value="{{ $assignedLabel }}" disabled>
+        @else
+            <select name="assigned_to" id="assigned_to" class="form-select @error('assigned_to') is-invalid @enderror">
+                <option value="">Unassigned</option>
+                @foreach ($users as $user)
+                    <option
+                        value="{{ $user->id }}"
+                        @selected($assignedToValue === (string) $user->id)
+                    >
+                        {{ $user->name }} ({{ $user->email }})
+                    </option>
+                @endforeach
+            </select>
+        @endif
         @error('assigned_to')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
@@ -115,31 +140,41 @@
         @error('category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
-    <div class="col-12">
-        <label class="form-label" for="attachments">Attachments</label>
-        <input
-            type="file"
-            name="attachments[]"
-            id="attachments"
-            class="form-control @error('attachments') is-invalid @enderror"
-            multiple
-        >
-        <div class="form-text">Add one or more files (max 5MB each).</div>
-        @error('attachments')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        @error('attachments.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
-    </div>
+    @php
+        $canUploadAttachments = $task ? auth()->user()?->can('uploadAttachments', $task) : auth()->user()?->can('upload-task-attachments');
+    @endphp
+    @if ($canUploadAttachments)
+        <div class="col-12">
+            <label class="form-label" for="attachments">Attachments</label>
+            <input
+                type="file"
+                name="attachments[]"
+                id="attachments"
+                class="form-control @error('attachments') is-invalid @enderror"
+                multiple
+            >
+            <div class="form-text">Add one or more files (max 5MB each).</div>
+            @error('attachments')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            @error('attachments.*')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+        </div>
+    @endif
 
-    <div class="col-12">
-        <label class="form-label" for="comment">Add comment</label>
-        <textarea
-            name="comment"
-            id="comment"
-            rows="3"
-            class="form-control @error('comment') is-invalid @enderror"
-            placeholder="Leave a note for this task..."
-        >{{ old('comment') }}</textarea>
-        @error('comment')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
+    @php
+        $canComment = $task ? auth()->user()?->can('comment', $task) : auth()->user()?->can('comment-task');
+    @endphp
+    @if ($canComment)
+        <div class="col-12">
+            <label class="form-label" for="comment">Add comment</label>
+            <textarea
+                name="comment"
+                id="comment"
+                rows="3"
+                class="form-control @error('comment') is-invalid @enderror"
+                placeholder="Leave a note for this task..."
+            >{{ old('comment') }}</textarea>
+            @error('comment')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+    @endif
 </div>
 
 @push('scripts')

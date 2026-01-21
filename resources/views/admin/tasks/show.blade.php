@@ -49,15 +49,13 @@
             }
             .ops-pill.todo { background: #bae6fd; color: #075985; }
             .ops-pill.in_progress { background: #fef9c3; color: #854d0e; }
-            .ops-pill.done { background: #bbf7d0; color: #166534; }
-            .ops-pill.completed { background: #bbf7d0; color: #166534; }
-            .ops-pill.backlog { background: #e2e8f0; color: #475569; }
-            .ops-pill.deployed-s { background: #e0f2fe; color: #0c4a6e; }
-            .ops-pill.deployed-p { background: #e2e8f0; color: #1e293b; }
-            .ops-pill.reopen { background: #fef3c7; color: #92400e; }
-            .ops-rail {
-                border-left: 2px dashed #e2e8f0;
-                padding-left: 1.25rem;
+	            .ops-pill.done { background: #bbf7d0; color: #166534; }
+	            .ops-pill.completed { background: #bbf7d0; color: #166534; }
+	            .ops-pill.backlog { background: #e2e8f0; color: #475569; }
+	            .ops-pill.reopen { background: #fef3c7; color: #92400e; }
+	            .ops-rail {
+	                border-left: 2px dashed #e2e8f0;
+	                padding-left: 1.25rem;
             }
             .ops-attachment-thumb {
                 width: 54px;
@@ -70,18 +68,26 @@
         </style>
     @endonce
 
-    <x-slot name="header">
-        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between w-100">
-            <div>
-                <h2 class="h4 mb-0">{{ $task->title }}</h2>
-                <small class="text-muted">Task details and activity.</small>
-            </div>
-            <div class="d-flex gap-2 mt-3 mt-md-0">
-                <a href="{{ route('admin.tasks.index', request()->query()) }}" class="btn btn-outline-secondary">
-                    <i class="bi bi-arrow-left me-1"></i> Back to tasks
-                </a>
-                @can('update', $task)
-                    <a href="{{ route('admin.tasks.edit', array_merge(['task' => $task], request()->query())) }}" class="btn btn-primary">
+	    <x-slot name="header">
+	        @php
+	            $returnTo = request()->input('return_to', 'index');
+	            $backRoute = match ($returnTo) {
+	                'backlog' => 'admin.tasks.backlog',
+	                'all' => 'admin.tasks.all',
+	                default => 'admin.tasks.index',
+	            };
+	        @endphp
+	        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between w-100">
+	            <div>
+	                <h2 class="h4 mb-0">{{ $task->title }}</h2>
+	                <small class="text-muted">Task details and activity.</small>
+	            </div>
+	            <div class="d-flex gap-2 mt-3 mt-md-0">
+	                <a href="{{ route($backRoute, request()->except(['task', 'attachment'])) }}" class="btn btn-outline-secondary">
+	                    <i class="bi bi-arrow-left me-1"></i> Back to tasks
+	                </a>
+	                @can('update', $task)
+	                    <a href="{{ route('admin.tasks.edit', array_merge(['task' => $task], request()->query())) }}" class="btn btn-primary">
                         <i class="bi bi-pencil me-1"></i> Edit
                     </a>
                 @endcan
@@ -123,20 +129,18 @@
                     <p class="mb-0">{{ $task->description ?: 'No description.' }}</p>
                 </div>
 
-                <div class="ops-panel p-4">
-                    <div class="ops-section-title mb-3">Comments</div>
-                    @auth
-                        @if (! $task->isRestrictedStatus() || auth()->user()?->hasAnyRole(['admin', 'super-admin']))
-                            <form action="{{ route('admin.tasks.comments.store', $task) }}" method="POST" class="mb-3">
-                                @csrf
-                                <div class="mb-2">
-                                    <textarea name="comment" rows="3" class="form-control" placeholder="Add a comment..."></textarea>
-                                    @error('comment')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
-                                </div>
-                                <button type="submit" class="btn btn-primary btn-sm">Add comment</button>
-                            </form>
-                        @endif
-                    @endauth
+	                <div class="ops-panel p-4">
+	                    <div class="ops-section-title mb-3">Comments</div>
+	                    @can('comment', $task)
+	                        <form action="{{ route('admin.tasks.comments.store', $task) }}" method="POST" class="mb-3">
+	                            @csrf
+	                            <div class="mb-2">
+	                                <textarea name="comment" rows="3" class="form-control" placeholder="Add a comment..."></textarea>
+	                                @error('comment')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+	                            </div>
+	                            <button type="submit" class="btn btn-primary btn-sm">Add comment</button>
+	                        </form>
+	                    @endcan
 
                     @if ($task->comments->isEmpty())
                         <div class="text-muted">No comments yet.</div>
@@ -189,17 +193,45 @@
             </div>
         </div>
 
-        <div class="row g-3 mt-3">
-            <div class="col-12">
-                <div class="ops-panel p-4">
-                    <div class="ops-section-title mb-3">Attachments</div>
-                    @if ($task->attachments->isEmpty())
-                        <div class="text-muted">No attachments yet.</div>
-                    @else
-                        @php
-                            $previewableMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
-                        @endphp
-                        <div class="list-group">
+	        <div class="row g-3 mt-3">
+	            <div class="col-12">
+	                <div class="ops-panel p-4">
+	                    <div class="ops-section-title mb-3">Attachments</div>
+	                    @if ($task->attachments->isEmpty())
+	                        <div class="text-muted">No attachments yet.</div>
+	                        @can('uploadAttachments', $task)
+	                            <form action="{{ route('admin.tasks.attachments.store', $task) }}" method="POST" enctype="multipart/form-data" class="mt-3">
+	                                @csrf
+	                                <div class="d-flex flex-column flex-md-row gap-2 align-items-md-center">
+	                                    <input type="file" name="attachments[]" class="form-control @error('attachments.*') is-invalid @enderror" multiple required>
+	                                    <button type="submit" class="btn btn-primary text-nowrap">
+	                                        <i class="bi bi-upload me-1"></i> Upload
+	                                    </button>
+	                                </div>
+	                                @error('attachments')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+	                                @error('attachments.*')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+	                            </form>
+	                        @endcan
+	                    @elseif (! auth()->user()?->can('downloadAttachments', $task))
+	                        <div class="text-muted">You don't have permission to view attachments for this task.</div>
+	                    @else
+	                        @can('uploadAttachments', $task)
+	                            <form action="{{ route('admin.tasks.attachments.store', $task) }}" method="POST" enctype="multipart/form-data" class="mb-3">
+	                                @csrf
+	                                <div class="d-flex flex-column flex-md-row gap-2 align-items-md-center">
+	                                    <input type="file" name="attachments[]" class="form-control @error('attachments.*') is-invalid @enderror" multiple required>
+	                                    <button type="submit" class="btn btn-primary text-nowrap">
+	                                        <i class="bi bi-upload me-1"></i> Upload
+	                                    </button>
+	                                </div>
+	                                @error('attachments')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+	                                @error('attachments.*')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+	                            </form>
+	                        @endcan
+	                        @php
+	                            $previewableMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
+	                        @endphp
+	                        <div class="list-group">
                             @foreach ($task->attachments as $attachment)
                                 @php
                                     $mimeType = strtolower((string) $attachment->mime_type);

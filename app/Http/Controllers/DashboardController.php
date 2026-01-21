@@ -20,7 +20,6 @@ class DashboardController extends Controller
 
         if (! $isSuperAdmin) {
             $status = $request->input('status');
-            $assignedTo = $request->input('assigned_to');
             $categoryId = $request->input('category_id');
             $perPage = $request->input('per_page', '10');
             $perPageOptions = ['10', '15', '25', '50', 'all'];
@@ -34,13 +33,8 @@ class DashboardController extends Controller
 
             $taskQuery = Task::query()
                 ->with(['assignedTo', 'labels'])
-                ->visibleTo($user);
-
-            if (! empty($assignedTo)) {
-                $taskQuery->where('assigned_to', $assignedTo);
-            } else {
-                $taskQuery->whereNotNull('assigned_to');
-            }
+                ->where('assigned_to', $user?->id)
+                ->whereIn('status', Task::standardStatuses());
 
             if (! empty($categoryId)) {
                 $taskQuery->whereHas('labels', function ($query) use ($categoryId) {
@@ -48,7 +42,7 @@ class DashboardController extends Controller
                 });
             }
 
-            if (in_array($status, Task::allowedStatusesFor($user), true)) {
+            if (in_array($status, Task::standardStatuses(), true)) {
                 $taskQuery->where('status', $status);
             }
 
@@ -59,14 +53,14 @@ class DashboardController extends Controller
                 ->appends($request->query());
 
             $taskCounts = Task::query()
-                ->visibleTo($user)
                 ->where('assigned_to', $user?->id)
+                ->whereIn('status', Task::standardStatuses())
                 ->selectRaw("status, COUNT(*) as total")
                 ->groupBy('status')
                 ->pluck('total', 'status');
 
             $taskWidgets = [];
-            $statusLabels = Task::visibleStatusLabels($user);
+            $statusLabels = Task::standardStatusLabels();
             foreach ($statusLabels as $statusKey => $label) {
                 $taskWidgets[] = [
                     'label' => $label,
@@ -79,7 +73,6 @@ class DashboardController extends Controller
             $categories = TaskLabel::query()->orderBy('name')->get(['id', 'name']);
             $filters = [
                 'status' => $status,
-                'assigned_to' => $assignedTo,
                 'category_id' => $categoryId,
                 'per_page' => (string) $perPage,
             ];
@@ -113,19 +106,17 @@ class DashboardController extends Controller
 
         $latestTasks = Task::query()
             ->with(['assignedTo', 'labels'])
-            ->visibleTo($user)
             ->latest('updated_at')
             ->limit(3)
             ->get();
 
         $taskCounts = Task::query()
-            ->visibleTo($user)
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
 
         $taskWidgets = [];
-        $statusLabels = Task::visibleStatusLabels($user);
+        $statusLabels = Task::statusLabels();
         foreach ($statusLabels as $statusKey => $label) {
             $taskWidgets[] = [
                 'label' => $label,

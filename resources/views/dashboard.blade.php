@@ -126,20 +126,10 @@
                 color: #198754;
             }
 
-            .task-badge-backlog {
-                background: #e9ecef;
-                color: #495057;
-            }
-
-            .task-badge-deployed-s {
-                background: #e7f1ff;
-                color: #0b5ed7;
-            }
-
-            .task-badge-deployed-p {
-                background: #e9ecef;
-                color: #343a40;
-            }
+	            .task-badge-backlog {
+	                background: #e9ecef;
+	                color: #495057;
+	            }
 
             .task-badge-reopen {
                 background: #fff3cd;
@@ -222,13 +212,12 @@
                     </div>
                     <div class="col-6 col-md-3 col-lg-2">
                         <label class="form-label mb-1">Status</label>
-                        <select name="status" class="form-select">
-                            <option value="">All</option>
-                            @php $statusOptions = $statusOptions ?? \App\Models\Task::visibleStatusLabels(auth()->user()); @endphp
-                            @foreach ($statusOptions as $value => $label)
-                                <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}
-                                </option>
-                            @endforeach
+	                        <select name="status" class="form-select">
+	                            <option value="">All</option>
+	                            @foreach ($statusOptions as $value => $label)
+	                                <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}
+	                                </option>
+	                            @endforeach
                         </select>
                     </div>
                     <div class="col-6 col-md-3 col-lg-2">
@@ -277,18 +266,16 @@
                     </thead>
                     <tbody>
                         @forelse ($tasks as $task)
-                            @php
-                                $statusClass = match ($task->status) {
-                                    'in_progress' => 'task-badge-progress',
-                                    'done' => 'task-badge-done',
-                                    'completed' => 'task-badge-completed',
-                                    'backlog' => 'task-badge-backlog',
-                                    'deployed-s' => 'task-badge-deployed-s',
-                                    'deployed-p' => 'task-badge-deployed-p',
-                                    'reopen' => 'task-badge-reopen',
-                                    default => 'task-badge-todo',
-                                };
-                                $priorityClass = match ($task->priority) {
+	                            @php
+	                                $statusClass = match ($task->status) {
+	                                    'in_progress' => 'task-badge-progress',
+	                                    'done' => 'task-badge-done',
+	                                    'completed' => 'task-badge-completed',
+	                                    'backlog' => 'task-badge-backlog',
+	                                    'reopen' => 'task-badge-reopen',
+	                                    default => 'task-badge-todo',
+	                                };
+	                                $priorityClass = match ($task->priority) {
                                     'high' => 'task-priority-high',
                                     'medium' => 'task-priority-medium',
                                     default => 'task-priority-low',
@@ -374,18 +361,16 @@
 
         <div class="row g-3 mb-4">
             @foreach ($taskWidgets as $widget)
-                @php
-                    $widgetIcon = match ($widget['status']) {
-                        'todo' => 'list-task',
-                        'in_progress' => 'hourglass-split',
-                        'done' => 'bug',
-                        'deployed-s' => 'cloud-upload',
-                        'deployed-p' => 'rocket-takeoff',
-                        'completed' => 'check-circle',
-                        'reopen' => 'arrow-counterclockwise',
-                        default => 'clipboard',
-                    };
-                @endphp
+	                @php
+	                    $widgetIcon = match ($widget['status']) {
+	                        'todo' => 'list-task',
+	                        'in_progress' => 'hourglass-split',
+	                        'done' => 'bug',
+	                        'completed' => 'check-circle',
+	                        'reopen' => 'arrow-counterclockwise',
+	                        default => 'clipboard',
+	                    };
+	                @endphp
                 <div class="col-12 col-sm-6 col-xl-3">
                     <a class="text-decoration-none" href="{{ route('admin.tasks.index', array_filter(['status' => $widget['status']])) }}">
                         <div class="metric-card p-3 h-100 bg-white">
@@ -435,18 +420,16 @@
                     </thead>
                     <tbody>
                         @forelse ($latestTasks as $task)
-                            @php
-                                $statusClass = match ($task->status) {
-                                    'in_progress' => 'task-badge-progress',
-                                    'done' => 'task-badge-done',
-                                    'completed' => 'task-badge-completed',
-                                    'backlog' => 'task-badge-backlog',
-                                    'deployed-s' => 'task-badge-deployed-s',
-                                    'deployed-p' => 'task-badge-deployed-p',
-                                    'reopen' => 'task-badge-reopen',
-                                    default => 'task-badge-todo',
-                                };
-                                $priorityClass = match ($task->priority) {
+	                            @php
+	                                $statusClass = match ($task->status) {
+	                                    'in_progress' => 'task-badge-progress',
+	                                    'done' => 'task-badge-done',
+	                                    'completed' => 'task-badge-completed',
+	                                    'backlog' => 'task-badge-backlog',
+	                                    'reopen' => 'task-badge-reopen',
+	                                    default => 'task-badge-todo',
+	                                };
+	                                $priorityClass = match ($task->priority) {
                                     'high' => 'task-priority-high',
                                     'medium' => 'task-priority-medium',
                                     default => 'task-priority-low',

@@ -7,6 +7,8 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class TaskAttachmentPreviewTest extends TestCase
@@ -17,9 +19,16 @@ class TaskAttachmentPreviewTest extends TestCase
     {
         Storage::fake();
 
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        Permission::findOrCreate('view-tasks');
+        Permission::findOrCreate('download-task-attachments');
+
         $user = User::factory()->create();
+        $user->givePermissionTo(['view-tasks', 'download-task-attachments']);
         $task = Task::create([
             'title' => 'Preview task',
+            'status' => Task::STATUS_TODO,
+            'assigned_to' => $user->id,
         ]);
 
         $file = UploadedFile::fake()->image('photo.jpg', 100, 100);
@@ -46,9 +55,16 @@ class TaskAttachmentPreviewTest extends TestCase
     {
         Storage::fake();
 
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        Permission::findOrCreate('view-tasks');
+        Permission::findOrCreate('download-task-attachments');
+
         $user = User::factory()->create();
+        $user->givePermissionTo(['view-tasks', 'download-task-attachments']);
         $task = Task::create([
             'title' => 'Non-image task',
+            'status' => Task::STATUS_TODO,
+            'assigned_to' => $user->id,
         ]);
 
         Storage::put('task-attachments/readme.txt', 'hello');
@@ -67,13 +83,18 @@ class TaskAttachmentPreviewTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_preview_is_forbidden_for_restricted_task_when_user_not_admin(): void
+    public function test_preview_is_forbidden_for_backlog_task_without_view_backlog_permission(): void
     {
         Storage::fake();
 
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        Permission::findOrCreate('download-task-attachments');
+        Permission::findOrCreate('view-tasks');
+
         $user = User::factory()->create();
+        $user->givePermissionTo(['view-tasks', 'download-task-attachments']);
         $task = Task::create([
-            'title' => 'Restricted task',
+            'title' => 'Backlog task',
             'status' => Task::STATUS_BACKLOG,
         ]);
 
@@ -94,4 +115,3 @@ class TaskAttachmentPreviewTest extends TestCase
             ->assertForbidden();
     }
 }
-

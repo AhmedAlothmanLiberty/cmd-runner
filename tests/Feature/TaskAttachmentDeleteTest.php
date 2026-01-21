@@ -7,20 +7,28 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class TaskAttachmentDeleteTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_assigned_user_can_delete_attachment_and_file(): void
+    public function test_user_with_permission_can_delete_attachment_and_file(): void
     {
         Storage::fake();
 
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        Permission::findOrCreate('view-tasks');
+        Permission::findOrCreate('delete-task-attachments');
+
         $user = User::factory()->create();
+        $user->givePermissionTo(['view-tasks', 'delete-task-attachments']);
         $task = Task::create([
             'title' => 'Delete task',
             'assigned_to' => $user->id,
+            'status' => Task::STATUS_TODO,
         ]);
 
         $file = UploadedFile::fake()->create('doc.txt', 10, 'text/plain');
@@ -48,11 +56,17 @@ class TaskAttachmentDeleteTest extends TestCase
     {
         Storage::fake();
 
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        Permission::findOrCreate('view-tasks');
+        Permission::findOrCreate('delete-task-attachments');
+
         $assignedUser = User::factory()->create();
         $otherUser = User::factory()->create();
+        $otherUser->givePermissionTo(['view-tasks']);
         $task = Task::create([
             'title' => 'Forbidden task',
             'assigned_to' => $assignedUser->id,
+            'status' => Task::STATUS_TODO,
         ]);
 
         $path = Storage::put('task-attachments/readme.txt', 'hello');
@@ -71,15 +85,19 @@ class TaskAttachmentDeleteTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_cannot_delete_attachment_when_task_is_restricted(): void
+    public function test_delete_is_forbidden_for_backlog_task_without_view_backlog_permission(): void
     {
         Storage::fake();
 
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        Permission::findOrCreate('view-tasks');
+        Permission::findOrCreate('delete-task-attachments');
+
         $user = User::factory()->create();
+        $user->givePermissionTo(['view-tasks', 'delete-task-attachments']);
         $task = Task::create([
-            'title' => 'Restricted task',
+            'title' => 'Backlog task',
             'status' => Task::STATUS_BACKLOG,
-            'assigned_to' => $user->id,
         ]);
 
         $path = Storage::put('task-attachments/readme.txt', 'hello');
@@ -98,4 +116,3 @@ class TaskAttachmentDeleteTest extends TestCase
             ->assertForbidden();
     }
 }
-

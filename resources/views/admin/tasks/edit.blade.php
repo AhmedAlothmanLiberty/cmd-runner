@@ -49,30 +49,36 @@
             }
             .ops-pill.todo { background: #bae6fd; color: #075985; }
             .ops-pill.in_progress { background: #fef9c3; color: #854d0e; }
-            .ops-pill.done { background: #bbf7d0; color: #166534; }
-            .ops-pill.completed { background: #bbf7d0; color: #166534; }
-            .ops-pill.backlog { background: #e2e8f0; color: #475569; }
-            .ops-pill.deployed-s { background: #e0f2fe; color: #0c4a6e; }
-            .ops-pill.deployed-p { background: #e2e8f0; color: #1e293b; }
-            .ops-pill.reopen { background: #fef3c7; color: #92400e; }
-            .ops-rail {
-                border-left: 2px dashed #e2e8f0;
-                padding-left: 1.25rem;
+	            .ops-pill.done { background: #bbf7d0; color: #166534; }
+	            .ops-pill.completed { background: #bbf7d0; color: #166534; }
+	            .ops-pill.backlog { background: #e2e8f0; color: #475569; }
+	            .ops-pill.reopen { background: #fef3c7; color: #92400e; }
+	            .ops-rail {
+	                border-left: 2px dashed #e2e8f0;
+	                padding-left: 1.25rem;
             }
         </style>
     @endonce
 
-    <x-slot name="header">
-        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between w-100">
-            <div>
-                <h2 class="h4 mb-0">Edit Task</h2>
-                <small class="text-muted">Update task details and status.</small>
-            </div>
-            <a href="{{ route('admin.tasks.index', request()->query()) }}" class="btn btn-outline-secondary mt-3 mt-md-0">
-                <i class="bi bi-arrow-left me-1"></i> Back to tasks
-            </a>
-        </div>
-    </x-slot>
+	    <x-slot name="header">
+	        @php
+	            $returnTo = request()->input('return_to', 'index');
+	            $backRoute = match ($returnTo) {
+	                'backlog' => 'admin.tasks.backlog',
+	                'all' => 'admin.tasks.all',
+	                default => 'admin.tasks.index',
+	            };
+	        @endphp
+	        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between w-100">
+	            <div>
+	                <h2 class="h4 mb-0">Edit Task</h2>
+	                <small class="text-muted">Update task details and status.</small>
+	            </div>
+	            <a href="{{ route($backRoute, request()->except(['task', 'attachment'])) }}" class="btn btn-outline-secondary mt-3 mt-md-0">
+	                <i class="bi bi-arrow-left me-1"></i> Back to tasks
+	            </a>
+	        </div>
+	    </x-slot>
 
     <div class="ops-shell">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
@@ -150,15 +156,17 @@
                     @endif
                 </div>
             </div>
-            <div class="col-12 col-lg-6">
-                <div class="ops-panel p-4">
-                    <div class="ops-section-title mb-3">Attachments</div>
-                    @if ($task->attachments->isEmpty())
-                        <div class="text-muted">No attachments yet.</div>
-                    @else
-                        <div class="list-group">
-                            @foreach ($task->attachments as $attachment)
-                                <div class="list-group-item d-flex justify-content-between align-items-center">
+	            <div class="col-12 col-lg-6">
+	                <div class="ops-panel p-4">
+	                    <div class="ops-section-title mb-3">Attachments</div>
+	                    @if ($task->attachments->isEmpty())
+	                        <div class="text-muted">No attachments yet.</div>
+	                    @elseif (! auth()->user()?->can('downloadAttachments', $task))
+	                        <div class="text-muted">You don't have permission to view attachments for this task.</div>
+	                    @else
+	                        <div class="list-group">
+	                            @foreach ($task->attachments as $attachment)
+	                                <div class="list-group-item d-flex justify-content-between align-items-center">
                                     <div>
                                         <div class="fw-semibold">{{ $attachment->file_name }}</div>
                                         <small class="text-muted">
@@ -167,19 +175,19 @@
                                                 · {{ number_format($attachment->file_size / 1024, 1) }} KB
                                             @endif
                                         </small>
-                                    </div>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <a
-                                            href="{{ route('admin.tasks.attachments.download', ['task' => $task, 'attachment' => $attachment]) }}"
-                                            class="btn btn-sm btn-outline-secondary"
-                                        >
-                                            <i class="bi bi-download me-1"></i> Download
-                                        </a>
-                                        @can('update', $task)
-                                            <form
-                                                action="{{ route('admin.tasks.attachments.destroy', ['task' => $task, 'attachment' => $attachment]) }}"
-                                                method="POST"
-                                                class="d-inline"
+	                                    </div>
+	                                    <div class="d-flex align-items-center gap-2">
+	                                        <a
+	                                            href="{{ route('admin.tasks.attachments.download', ['task' => $task, 'attachment' => $attachment]) }}"
+	                                            class="btn btn-sm btn-outline-secondary"
+	                                        >
+	                                            <i class="bi bi-download me-1"></i> Download
+	                                        </a>
+	                                        @can('deleteAttachments', $task)
+	                                            <form
+	                                                action="{{ route('admin.tasks.attachments.destroy', ['task' => $task, 'attachment' => $attachment]) }}"
+	                                                method="POST"
+	                                                class="d-inline"
                                                 onsubmit="return confirm('Delete this attachment?')"
                                             >
                                                 @csrf
