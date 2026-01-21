@@ -27,7 +27,7 @@ class TaskController extends Controller
         $user = $request->user();
         $query = Task::query()
             ->with(['assignedTo', 'createdBy', 'updatedBy', 'labels'])
-            ->standardList();
+            ->standardListFor($user);
 
         $search = trim((string) $request->input('search', ''));
         $status = $request->input('status');
@@ -47,7 +47,7 @@ class TaskController extends Controller
             });
         }
 
-        if (in_array($status, Task::standardStatuses(), true)) {
+        if (in_array($status, Task::indexStatusesFor($user), true)) {
             $query->where('status', $status);
         }
 
@@ -82,7 +82,7 @@ class TaskController extends Controller
 
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
         $categories = TaskLabel::query()->orderBy('name')->get(['id', 'name', 'color']);
-        $statusOptions = Task::standardStatusLabels();
+        $statusOptions = Task::indexStatusLabelsFor($user);
 
         return view('admin.tasks.index', [
             'tasks' => $tasks,
@@ -155,7 +155,7 @@ class TaskController extends Controller
 
         $users = User::query()->orderBy('name')->get(['id', 'name', 'email']);
         $categories = TaskLabel::query()->orderBy('name')->get(['id', 'name', 'color']);
-        $statusOptions = Task::statusLabels();
+        $statusOptions = array_diff_key(Task::statusLabels(), array_flip(Task::deploymentStatuses()));
 
         return view('admin.tasks.index', [
             'tasks' => $tasks,
@@ -466,6 +466,9 @@ class TaskController extends Controller
         $categories = TaskLabel::query()->orderBy('name')->get();
 
         $statusOptions = Task::editStatusLabels($task);
+        if (! Task::canUseDeploymentStatuses(request()->user())) {
+            $statusOptions = array_diff_key($statusOptions, array_flip(Task::deploymentStatuses()));
+        }
 
         return view('admin.tasks.edit', compact('task', 'users', 'categories', 'statusOptions'));
     }
@@ -487,6 +490,13 @@ class TaskController extends Controller
 
         if (($data['status'] ?? null) !== $previousStatus) {
             $this->authorize('changeStatus', $task);
+
+            if (
+                in_array($data['status'], Task::deploymentStatuses(), true) &&
+                ! Task::canUseDeploymentStatuses($request->user())
+            ) {
+                abort(403);
+            }
         }
 
         if (array_key_exists('assigned_to', $data) && ($data['assigned_to'] ?? null) !== $previousAssignedTo) {
@@ -546,6 +556,13 @@ class TaskController extends Controller
         $validated = $request->validate([
             'status' => ['required', Rule::in(Task::editStatuses($task))],
         ]);
+
+        if (
+            in_array($validated['status'], Task::deploymentStatuses(), true) &&
+            ! Task::canUseDeploymentStatuses($request->user())
+        ) {
+            abort(403);
+        }
 
         $previousStatus = $task->status;
         $task->status = $validated['status'];

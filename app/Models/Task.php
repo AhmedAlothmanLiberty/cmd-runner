@@ -18,6 +18,8 @@ class Task extends Model
     public const STATUS_DONE = 'done';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_BACKLOG = 'backlog';
+    public const STATUS_DEPLOYED_S = 'deployed-s';
+    public const STATUS_DEPLOYED_P = 'deployed-p';
     public const STATUS_REOPEN = 'reopen';
 
     public const STATUS_LABELS = [
@@ -26,6 +28,8 @@ class Task extends Model
         self::STATUS_DONE => 'Testing',
         self::STATUS_COMPLETED => 'Complete',
         self::STATUS_BACKLOG => 'Backlog',
+        self::STATUS_DEPLOYED_S => 'Staging',
+        self::STATUS_DEPLOYED_P => 'Production',
         self::STATUS_REOPEN => 'Reopen',
     ];
 
@@ -83,11 +87,22 @@ class Task extends Model
             ->whereIn('status', self::standardStatuses());
     }
 
+    public function scopeStandardListFor(Builder $query, ?User $user): Builder
+    {
+        return $query
+            ->whereNotNull('assigned_to')
+            ->whereIn('status', self::indexStatusesFor($user));
+    }
+
     public function scopeBacklogList(Builder $query): Builder
     {
         return $query->where(function (Builder $q): void {
             $q->where('status', self::STATUS_BACKLOG)
-                ->orWhereNull('assigned_to');
+                ->orWhere(function (Builder $unassigned): void {
+                    $unassigned
+                        ->whereNull('assigned_to')
+                        ->whereNotIn('status', self::deploymentStatuses());
+                });
         });
     }
 
@@ -106,9 +121,47 @@ class Task extends Model
         return array_intersect_key(self::STATUS_LABELS, array_flip(self::standardStatuses()));
     }
 
+    public static function backlogStatusLabels(): array
+    {
+        return array_intersect_key(self::STATUS_LABELS, array_flip([self::STATUS_BACKLOG]));
+    }
+
+    public static function deploymentStatuses(): array
+    {
+        return [
+            self::STATUS_DEPLOYED_S,
+            self::STATUS_DEPLOYED_P,
+        ];
+    }
+
+    public static function canUseDeploymentStatuses(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        return ($user->hasAnyRole(['admin', 'super-admin']) ?? false) || $user->can('manage-tasks');
+    }
+
+    public static function indexStatusesFor(?User $user): array
+    {
+        $statuses = self::standardStatuses();
+
+        if (self::canUseDeploymentStatuses($user)) {
+            $statuses = array_values(array_unique(array_merge($statuses, self::deploymentStatuses())));
+        }
+
+        return $statuses;
+    }
+
+    public static function indexStatusLabelsFor(?User $user): array
+    {
+        return array_intersect_key(self::STATUS_LABELS, array_flip(self::indexStatusesFor($user)));
+    }
+
     public static function formStatusLabels(): array
     {
-        return self::STATUS_LABELS;
+        return array_diff_key(self::STATUS_LABELS, array_flip(self::deploymentStatuses()));
     }
 
     public static function editStatusLabels(?self $task = null): array

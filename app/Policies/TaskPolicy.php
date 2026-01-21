@@ -23,6 +23,10 @@ class TaskPolicy
             return true;
         }
 
+        if (in_array($task->status, Task::deploymentStatuses(), true)) {
+            return $user->hasAnyRole(['admin', 'super-admin']);
+        }
+
         if ($task->isBacklogList()) {
             return $user->can('view-backlog');
         }
@@ -42,7 +46,11 @@ class TaskPolicy
 
     public function changeStatus(User $user, Task $task): bool
     {
-        return $this->hasTaskPermission($user, 'change-task-status');
+        if (! $this->hasTaskPermission($user, 'change-task-status')) {
+            return false;
+        }
+
+        return $this->view($user, $task);
     }
 
     public function assign(User $user, Task $task): bool

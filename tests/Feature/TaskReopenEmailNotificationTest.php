@@ -20,7 +20,9 @@ class TaskReopenEmailNotificationTest extends TestCase
         app(PermissionRegistrar::class)->forgetCachedPermissions();
         $adminRole = Role::findOrCreate('admin');
         Permission::findOrCreate('change-task-status');
+        Permission::findOrCreate('view-tasks');
         $adminRole->givePermissionTo('change-task-status');
+        $adminRole->givePermissionTo('view-tasks');
 
         $actor = User::factory()->create();
         $actor->assignRole($adminRole);

@@ -71,6 +71,14 @@
 	                background: #e2e8f0;
 	                color: #475569;
 	            }
+	            .status-cell--deployed-s .status-text {
+	                background: #e0f2fe;
+	                color: #0c4a6e;
+	            }
+	            .status-cell--deployed-p .status-text {
+	                background: #e2e8f0;
+	                color: #1e293b;
+	            }
 	            .status-cell--reopen .status-text {
 	                background: #fef3c7;
 	                color: #92400e;

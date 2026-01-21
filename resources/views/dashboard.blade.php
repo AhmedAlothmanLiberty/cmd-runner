@@ -130,6 +130,16 @@
 	                background: #e9ecef;
 	                color: #495057;
 	            }
+	
+	            .task-badge-deployed-s {
+	                background: #e7f1ff;
+	                color: #0b5ed7;
+	            }
+	
+	            .task-badge-deployed-p {
+	                background: #e9ecef;
+	                color: #343a40;
+	            }
 
             .task-badge-reopen {
                 background: #fff3cd;
@@ -272,6 +282,8 @@
 	                                    'done' => 'task-badge-done',
 	                                    'completed' => 'task-badge-completed',
 	                                    'backlog' => 'task-badge-backlog',
+	                                    'deployed-s' => 'task-badge-deployed-s',
+	                                    'deployed-p' => 'task-badge-deployed-p',
 	                                    'reopen' => 'task-badge-reopen',
 	                                    default => 'task-badge-todo',
 	                                };
@@ -366,6 +378,8 @@
 	                        'todo' => 'list-task',
 	                        'in_progress' => 'hourglass-split',
 	                        'done' => 'bug',
+	                        'deployed-s' => 'cloud-upload',
+	                        'deployed-p' => 'rocket-takeoff',
 	                        'completed' => 'check-circle',
 	                        'reopen' => 'arrow-counterclockwise',
 	                        default => 'clipboard',
@@ -426,6 +440,8 @@
 	                                    'done' => 'task-badge-done',
 	                                    'completed' => 'task-badge-completed',
 	                                    'backlog' => 'task-badge-backlog',
+	                                    'deployed-s' => 'task-badge-deployed-s',
+	                                    'deployed-p' => 'task-badge-deployed-p',
 	                                    'reopen' => 'task-badge-reopen',
 	                                    default => 'task-badge-todo',
 	                                };
