@@ -52,6 +52,7 @@
 	            .ops-pill.done { background: #bbf7d0; color: #166534; }
 	            .ops-pill.completed { background: #bbf7d0; color: #166534; }
 	            .ops-pill.backlog { background: #e2e8f0; color: #475569; }
+	            .ops-pill.submitted { background: #ede9fe; color: #5b21b6; }
 	            .ops-pill.deployed-s { background: #e0f2fe; color: #0c4a6e; }
 	            .ops-pill.deployed-p { background: #e2e8f0; color: #1e293b; }
 	            .ops-pill.reopen { background: #fef3c7; color: #92400e; }

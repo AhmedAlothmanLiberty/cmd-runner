@@ -467,7 +467,7 @@ class TaskController extends Controller
 
         $statusOptions = Task::editStatusLabels($task);
         if (! Task::canUseDeploymentStatuses(request()->user())) {
-            $statusOptions = array_diff_key($statusOptions, array_flip(Task::deploymentStatuses()));
+            $statusOptions = array_intersect_key($statusOptions, array_flip(Task::userChangeableStatuses()));
         }
 
         return view('admin.tasks.edit', compact('task', 'users', 'categories', 'statusOptions'));
@@ -490,6 +490,12 @@ class TaskController extends Controller
 
         if (($data['status'] ?? null) !== $previousStatus) {
             $this->authorize('changeStatus', $task);
+
+            if (! Task::canUseDeploymentStatuses($request->user())) {
+                if (! in_array($data['status'], Task::userChangeableStatuses(), true)) {
+                    abort(403);
+                }
+            }
 
             if (
                 in_array($data['status'], Task::deploymentStatuses(), true) &&
@@ -553,9 +559,19 @@ class TaskController extends Controller
     {
         $this->authorize('changeStatus', $task);
 
+        $allowedStatuses = Task::canUseDeploymentStatuses($request->user())
+            ? Task::editStatuses($task)
+            : Task::userChangeableStatuses();
+
         $validated = $request->validate([
-            'status' => ['required', Rule::in(Task::editStatuses($task))],
+            'status' => ['required', Rule::in($allowedStatuses)],
         ]);
+
+        if (! Task::canUseDeploymentStatuses($request->user())) {
+            if (! in_array($validated['status'], Task::userChangeableStatuses(), true)) {
+                abort(403);
+            }
+        }
 
         if (
             in_array($validated['status'], Task::deploymentStatuses(), true) &&

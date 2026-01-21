@@ -52,6 +52,7 @@
 	            .ops-pill.done { background: #bbf7d0; color: #166534; }
 	            .ops-pill.completed { background: #bbf7d0; color: #166534; }
 	            .ops-pill.backlog { background: #e2e8f0; color: #475569; }
+	            .ops-pill.submitted { background: #ede9fe; color: #5b21b6; }
 	            .ops-pill.deployed-s { background: #e0f2fe; color: #0c4a6e; }
 	            .ops-pill.deployed-p { background: #e2e8f0; color: #1e293b; }
 	            .ops-pill.reopen { background: #fef3c7; color: #92400e; }
@@ -166,19 +167,25 @@
 	                <div class="ops-panel p-4 h-100 ops-rail">
 	                    <div class="ops-section-title mb-3">Mission Status</div>
 	                    <div class="d-flex flex-column gap-3">
-	                        @can('changeStatus', $task)
-	                            <div class="ops-kpi">
-	                                <div class="text-muted small mb-2">Change status</div>
-	                                <form action="{{ route('admin.tasks.status', $task) }}" method="POST" class="d-flex gap-2 align-items-center">
-	                                    @csrf
-	                                    @method('PATCH')
-	                                    <select name="status" class="form-select form-select-sm">
-	                                        @foreach (\App\Models\Task::editStatusLabels($task) as $value => $label)
-	                                            <option value="{{ $value }}" @selected($task->status === $value)>{{ $label }}</option>
-	                                        @endforeach
-	                                    </select>
-	                                    <button type="submit" class="btn btn-sm btn-primary text-nowrap">Update</button>
-	                                </form>
+		                        @can('changeStatus', $task)
+		                            <div class="ops-kpi">
+		                                <div class="text-muted small mb-2">Change status</div>
+		                                @php
+		                                    $statusOptions = \App\Models\Task::editStatusLabels($task);
+		                                    if (! \App\Models\Task::canUseDeploymentStatuses(auth()->user())) {
+		                                        $statusOptions = array_intersect_key($statusOptions, array_flip(\App\Models\Task::userChangeableStatuses()));
+		                                    }
+		                                @endphp
+		                                <form action="{{ route('admin.tasks.status', $task) }}" method="POST" class="d-flex gap-2 align-items-center">
+		                                    @csrf
+		                                    @method('PATCH')
+		                                    <select name="status" class="form-select form-select-sm">
+		                                        @foreach ($statusOptions as $value => $label)
+		                                            <option value="{{ $value }}" @selected($task->status === $value)>{{ $label }}</option>
+		                                        @endforeach
+		                                    </select>
+		                                    <button type="submit" class="btn btn-sm btn-primary text-nowrap">Update</button>
+		                                </form>
 	                                @error('status')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
 	                            </div>
 	                        @endcan

@@ -141,10 +141,15 @@
 	                color: #343a40;
 	            }
 
-            .task-badge-reopen {
-                background: #fff3cd;
-                color: #997404;
-            }
+	            .task-badge-reopen {
+	                background: #fff3cd;
+	                color: #997404;
+	            }
+	
+	            .task-badge-submitted {
+	                background: #ede9fe;
+	                color: #5b21b6;
+	            }
 
             .task-priority-low {
                 background: #eef2ff;
@@ -280,6 +285,7 @@
 	                                $statusClass = match ($task->status) {
 	                                    'in_progress' => 'task-badge-progress',
 	                                    'done' => 'task-badge-done',
+	                                    'submitted' => 'task-badge-submitted',
 	                                    'completed' => 'task-badge-completed',
 	                                    'backlog' => 'task-badge-backlog',
 	                                    'deployed-s' => 'task-badge-deployed-s',
@@ -378,6 +384,7 @@
 	                        'todo' => 'list-task',
 	                        'in_progress' => 'hourglass-split',
 	                        'done' => 'bug',
+	                        'submitted' => 'send-check',
 	                        'deployed-s' => 'cloud-upload',
 	                        'deployed-p' => 'rocket-takeoff',
 	                        'completed' => 'check-circle',
@@ -438,6 +445,7 @@
 	                                $statusClass = match ($task->status) {
 	                                    'in_progress' => 'task-badge-progress',
 	                                    'done' => 'task-badge-done',
+	                                    'submitted' => 'task-badge-submitted',
 	                                    'completed' => 'task-badge-completed',
 	                                    'backlog' => 'task-badge-backlog',
 	                                    'deployed-s' => 'task-badge-deployed-s',

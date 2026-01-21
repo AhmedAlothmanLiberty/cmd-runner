@@ -16,6 +16,7 @@ class Task extends Model
     public const STATUS_TODO = 'todo';
     public const STATUS_IN_PROGRESS = 'in_progress';
     public const STATUS_DONE = 'done';
+    public const STATUS_SUBMITTED = 'submitted';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_BACKLOG = 'backlog';
     public const STATUS_DEPLOYED_S = 'deployed-s';
@@ -26,6 +27,7 @@ class Task extends Model
         self::STATUS_TODO => 'To Do',
         self::STATUS_IN_PROGRESS => 'In Progress',
         self::STATUS_DONE => 'Testing',
+        self::STATUS_SUBMITTED => 'Submitted',
         self::STATUS_COMPLETED => 'Complete',
         self::STATUS_BACKLOG => 'Backlog',
         self::STATUS_DEPLOYED_S => 'Staging',
@@ -80,13 +82,6 @@ class Task extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    public function scopeStandardList(Builder $query): Builder
-    {
-        return $query
-            ->whereNotNull('assigned_to')
-            ->whereIn('status', self::standardStatuses());
-    }
-
     public function scopeStandardListFor(Builder $query, ?User $user): Builder
     {
         return $query
@@ -108,7 +103,15 @@ class Task extends Model
 
     public function isBacklogList(): bool
     {
-        return $this->status === self::STATUS_BACKLOG || $this->assigned_to === null;
+        if ($this->status === self::STATUS_BACKLOG) {
+            return true;
+        }
+
+        if ($this->assigned_to === null && ! in_array($this->status, self::deploymentStatuses(), true)) {
+            return true;
+        }
+
+        return false;
     }
 
     public static function statusLabels(): array
@@ -121,16 +124,21 @@ class Task extends Model
         return array_intersect_key(self::STATUS_LABELS, array_flip(self::standardStatuses()));
     }
 
-    public static function backlogStatusLabels(): array
-    {
-        return array_intersect_key(self::STATUS_LABELS, array_flip([self::STATUS_BACKLOG]));
-    }
-
     public static function deploymentStatuses(): array
     {
         return [
             self::STATUS_DEPLOYED_S,
             self::STATUS_DEPLOYED_P,
+        ];
+    }
+
+    public static function userChangeableStatuses(): array
+    {
+        return [
+            self::STATUS_TODO,
+            self::STATUS_IN_PROGRESS,
+            self::STATUS_DONE,
+            self::STATUS_SUBMITTED,
         ];
     }
 
@@ -145,11 +153,14 @@ class Task extends Model
 
     public static function indexStatusesFor(?User $user): array
     {
-        $statuses = self::standardStatuses();
+        $statuses = self::userChangeableStatuses();
 
         if (self::canUseDeploymentStatuses($user)) {
-            $statuses = array_values(array_unique(array_merge($statuses, self::deploymentStatuses())));
+            $statuses = array_merge($statuses, self::deploymentStatuses());
         }
+
+        $statuses[] = self::STATUS_COMPLETED;
+        $statuses[] = self::STATUS_REOPEN;
 
         return $statuses;
     }
@@ -191,13 +202,9 @@ class Task extends Model
             self::STATUS_TODO,
             self::STATUS_IN_PROGRESS,
             self::STATUS_DONE,
+            self::STATUS_SUBMITTED,
             self::STATUS_COMPLETED,
             self::STATUS_REOPEN,
         ];
-    }
-
-    public static function allStatuses(): array
-    {
-        return array_keys(self::STATUS_LABELS);
     }
 }

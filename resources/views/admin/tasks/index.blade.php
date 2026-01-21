@@ -83,6 +83,10 @@
 	                background: #fef3c7;
 	                color: #92400e;
 	            }
+	            .status-cell--submitted .status-text {
+	                background: #ede9fe;
+	                color: #5b21b6;
+	            }
             .badge-soft {
                 border-radius: 999px;
                 padding: 0.25rem 0.6rem;

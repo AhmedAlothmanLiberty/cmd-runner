@@ -46,11 +46,22 @@ class TaskPolicy
 
     public function changeStatus(User $user, Task $task): bool
     {
+        
         if (! $this->hasTaskPermission($user, 'change-task-status')) {
             return false;
         }
 
-        return $this->view($user, $task);
+        if (! $this->view($user, $task)) {
+            return false;
+        }
+
+        if ($user->can('manage-tasks') || $user->hasAnyRole(['admin', 'super-admin'])) {
+            return true;
+        }
+        if ((int) $task->assigned_to !== (int) $user->id) {
+            return false;
+        }
+        return in_array($task->status, Task::userChangeableStatuses(), true);
     }
 
     public function assign(User $user, Task $task): bool
