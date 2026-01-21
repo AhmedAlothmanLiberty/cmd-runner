@@ -8,85 +8,37 @@ use App\Models\PackageUpdateLog;
 use App\Models\Task;
 use App\Models\TaskLabel;
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function __invoke(Request $request): View
+    public function __invoke(Request $request): View|RedirectResponse
     {
         $user = $request->user();
-        $isSuperAdmin = $user?->hasAnyRole(['admin', 'super-admin']) ?? false;
+        if ($user && $user->hasRole('automation')) {
+            return redirect()->route('admin.automations.index');
+        }
 
-        if (! $isSuperAdmin) {
-            $status = $request->input('status');
-            $categoryId = $request->input('category_id');
-            $perPage = $request->input('per_page', '10');
-            $perPageOptions = ['10', '15', '25', '50', 'all'];
-            if (! in_array((string) $perPage, $perPageOptions, true)) {
-                $perPage = '10';
+        if ($user && $user->hasRole('developer')) {
+            return redirect()->route('admin.tasks.index');
+        }
+
+        if (! ($user?->hasAnyRole(['admin', 'super-admin']) ?? false)) {
+            if ($user?->can('view-tasks') || $user?->can('manage-tasks')) {
+                return redirect()->route('admin.tasks.index');
             }
 
-            if ($status === null || $status === '') {
-                $status = 'in_progress';
+            if ($user?->can('view-backlog')) {
+                return redirect()->route('admin.tasks.backlog');
             }
 
-            $taskQuery = Task::query()
-                ->with(['assignedTo', 'labels'])
-                ->where('assigned_to', $user?->id)
-                ->whereIn('status', Task::standardStatuses());
-
-            if (! empty($categoryId)) {
-                $taskQuery->whereHas('labels', function ($query) use ($categoryId) {
-                    $query->where('task_labels.id', $categoryId);
-                });
+            if ($user?->can('view-all-tasks')) {
+                return redirect()->route('admin.tasks.all');
             }
 
-            if (in_array($status, Task::standardStatuses(), true)) {
-                $taskQuery->where('status', $status);
-            }
-
-            $perPageValue = $perPage === 'all' ? max(1, (int) $taskQuery->count()) : (int) $perPage;
-            $tasks = $taskQuery
-                ->orderByDesc('updated_at')
-                ->paginate($perPageValue)
-                ->appends($request->query());
-
-            $taskCounts = Task::query()
-                ->where('assigned_to', $user?->id)
-                ->whereIn('status', Task::standardStatuses())
-                ->selectRaw("status, COUNT(*) as total")
-                ->groupBy('status')
-                ->pluck('total', 'status');
-
-            $taskWidgets = [];
-            $statusLabels = Task::standardStatusLabels();
-            foreach ($statusLabels as $statusKey => $label) {
-                $taskWidgets[] = [
-                    'label' => $label,
-                    'value' => (int) ($taskCounts[$statusKey] ?? 0),
-                    'status' => $statusKey,
-                ];
-            }
-
-            $users = User::query()->orderBy('name')->get(['id', 'name']);
-            $categories = TaskLabel::query()->orderBy('name')->get(['id', 'name']);
-            $filters = [
-                'status' => $status,
-                'category_id' => $categoryId,
-                'per_page' => (string) $perPage,
-            ];
-
-            return view('dashboard', [
-                'isSuperAdmin' => false,
-                'taskWidgets' => $taskWidgets,
-                'tasks' => $tasks,
-                'users' => $users,
-                'categories' => $categories,
-                'filters' => $filters,
-                'perPageOptions' => $perPageOptions,
-                'statusOptions' => $statusLabels,
-            ]);
+            return redirect('/');
         }
 
         $totalAutomations = Automation::count();

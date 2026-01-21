@@ -1,11 +1,11 @@
 	@php
 	    $links = [];
 
-	    if (auth()->check()) {
+	    if (auth()->check() && auth()->user()->hasAnyRole(['admin', 'super-admin'])) {
 	        $links[] = [
-            'label' => 'Dashboard',
-            'description' => 'Overview',
-            'href' => route('dashboard'),
+	            'label' => 'Dashboard',
+	            'description' => 'Overview',
+	            'href' => route('dashboard'),
             'active' => request()->routeIs('dashboard'),
             'icon' => 'speedometer2',
         ];
