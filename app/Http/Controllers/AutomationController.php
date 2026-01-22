@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateAutomationRequest;
 use App\Models\Automation;
 use App\Models\AutomationLog;
 use App\Models\User;
+use App\Notifications\AutomationEventNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -70,10 +71,12 @@ class AutomationController extends Controller
 
         $data = $this->normalizeSchedulePayload($request->validated());
 
-        Automation::create(array_merge($data, [
+        $automation = Automation::create(array_merge($data, [
             'created_by' => $userEmail,
             'updated_by' => $userEmail,
         ]));
+
+        $this->notifyAdminAutomationEvent($automation, 'automation_created');
 
         return redirect()->route('admin.automations.index')->with('status', 'Automation created.');
     }
@@ -93,11 +96,14 @@ class AutomationController extends Controller
             'updated_by' => $userEmail,
         ]));
 
+        $this->notifyAdminAutomationEvent($automation, 'automation_updated');
+
         return redirect()->route('admin.automations.index')->with('status', 'Automation updated.');
     }
 
     public function destroy(Automation $automation): RedirectResponse
     {
+        $this->notifyAdminAutomationEvent($automation, 'automation_deleted');
         $automation->delete();
 
         return redirect()->route('admin.automations.index')->with('status', 'Automation deleted.');
@@ -106,6 +112,8 @@ class AutomationController extends Controller
     public function toggle(Automation $automation): RedirectResponse
     {
         $automation->update(['is_active' => ! $automation->is_active]);
+
+        $this->notifyAdminAutomationEvent($automation, 'automation_toggled');
 
         return back()->with('status', 'Automation status updated.');
     }
@@ -204,5 +212,35 @@ class AutomationController extends Controller
         $parts = array_map('trim', explode(',', $value));
 
         return array_values(array_unique(array_filter($parts, static fn ($v) => $v !== '')));
+    }
+
+    private function notifyAdminAutomationEvent(Automation $automation, string $type): void
+    {
+        $actorId = auth()->id();
+        $actorName = auth()->user()->name ?? auth()->user()->email ?? null;
+
+        $titleMap = [
+            'automation_created' => 'Automation created',
+            'automation_updated' => 'Automation updated',
+            'automation_deleted' => 'Automation deleted',
+            'automation_toggled' => 'Automation status changed',
+        ];
+
+        $title = $titleMap[$type] ?? 'Automation update';
+        $message = $automation->name;
+
+        $recipients = User::role(['admin', 'super-admin'])
+            ->get()
+            ->reject(fn (User $user) => $actorId && (int) $user->id === (int) $actorId);
+
+        $recipients->each(function (User $user) use ($automation, $type, $title, $message, $actorName): void {
+            $user->notify(new AutomationEventNotification(
+                $automation,
+                $type,
+                $title,
+                $message,
+                $actorName
+            ));
+        });
     }
 }
