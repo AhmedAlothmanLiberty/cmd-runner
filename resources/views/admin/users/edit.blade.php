@@ -33,27 +33,33 @@
                     @enderror
                 </div>
 
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label for="password" class="form-label">New Password (optional)</label>
-                        <input id="password" name="password" type="password" class="form-control @error('password') is-invalid @enderror" autocomplete="new-password">
-                        @error('password')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
+                @if (auth()->user()?->can('manage-users') || auth()->user()?->can('change-user-password'))
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="password" class="form-label">New Password (optional)</label>
+                            <input id="password" name="password" type="password" class="form-control @error('password') is-invalid @enderror" autocomplete="new-password">
+                            @error('password')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="password_confirmation" class="form-label">Confirm Password</label>
+                            <input id="password_confirmation" name="password_confirmation" type="password" class="form-control" autocomplete="new-password">
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <label for="password_confirmation" class="form-label">Confirm Password</label>
-                        <input id="password_confirmation" name="password_confirmation" type="password" class="form-control" autocomplete="new-password">
-                    </div>
-                </div>
+                @endif
 
                 <div class="mt-3">
                     <label class="form-label">Roles</label>
                     @php
                         $selectedRoles = old('roles', $user->roles->pluck('id')->toArray());
                     @endphp
-                    <x-role-selector :roles="$roles" :selected="$selectedRoles" />
-                    <small class="text-muted">Select one or more roles.</small>
+                    <x-role-selector :roles="$roles" :selected="$selectedRoles" :disabled="$disabledRoleIds ?? []" />
+                    @if (! empty($disabledRoleIds))
+                        <small class="text-muted">Some roles can only be assigned by super admins.</small>
+                    @else
+                        <small class="text-muted">Select one or more roles.</small>
+                    @endif
                     @error('roles')
                         <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
@@ -68,7 +74,7 @@
             <div class="mt-4 d-flex justify-content-between align-items-center">
                 @if (auth()->id() === $user->id)
                     <small class="text-muted">You cannot delete your own account.</small>
-                @else
+                @elseif (auth()->user()?->can('manage-users') || auth()->user()?->can('delete-user'))
                     <form class="d-inline" method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Delete this user?');">
                         @csrf
                         @method('DELETE')

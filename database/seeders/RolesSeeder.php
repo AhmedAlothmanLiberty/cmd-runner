@@ -20,13 +20,20 @@ class RolesSeeder extends Seeder
         $permissions = [
             'view-dashboard',
             'manage-users',
+            'view-users',
+            'create-user',
+            'update-user',
+            'change-user-password',
+            'delete-user',
+            'assign-roles',
+            'assign-admin-roles',
             'manage-roles',
             'manage-projects',
             'manage-tasks',
             'view-reports',
             'run-automation',
         ];
-
+    
         foreach ($permissions as $permission) {
             Permission::firstOrCreate([
                 'name' => $permission,
@@ -36,7 +43,7 @@ class RolesSeeder extends Seeder
 
         $rolesWithPermissions = [
             'super-admin' => $permissions,
-            'admin' => $permissions,
+            'admin' => array_values(array_diff($permissions, ['assign-admin-roles'])),
             'team-lead' => [
                 'view-dashboard',
                 'manage-projects',

@@ -6,9 +6,11 @@
                 <small class="text-muted">Manage team access, roles, and account status.</small>
             </div>
             <div class="mt-3 mt-md-0">
-                <a href="{{ route('admin.users.create') }}" class="btn btn-primary">
-                    <i class="bi bi-plus-lg me-1"></i> New User
-                </a>
+                @if (auth()->user()?->can('manage-users') || auth()->user()?->can('create-user'))
+                    <a href="{{ route('admin.users.create') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-lg me-1"></i> New User
+                    </a>
+                @endif
             </div>
         </div>
     </x-slot>
@@ -39,8 +41,11 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse ($users as $user)
-                            <tr>
+                            @forelse ($users as $user)
+                                @php
+                                    $isProtected = $user->hasRole('super-admin') && ! auth()->user()?->hasRole('super-admin');
+                                @endphp
+                                <tr>
                                 <td class="fw-semibold">{{ $user->name }}</td>
                                 <td>{{ $user->email }}</td>
                                 <td>
@@ -55,12 +60,16 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm" role="group">
-                                        <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-outline-secondary">Edit</a>
-                                        <form action="{{ route('admin.users.destroy', $user) }}" method="POST" onsubmit="return confirm('Delete this user?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-outline-danger">Delete</button>
-                                        </form>
+                                        @if (! $isProtected && (auth()->user()?->can('manage-users') || auth()->user()?->can('update-user')))
+                                            <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-outline-secondary">Edit</a>
+                                        @endif
+                                        @if (! $isProtected && (auth()->user()?->can('manage-users') || auth()->user()?->can('delete-user')) && auth()->id() !== $user->id)
+                                            <form action="{{ route('admin.users.destroy', $user) }}" method="POST" onsubmit="return confirm('Delete this user?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-outline-danger">Delete</button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

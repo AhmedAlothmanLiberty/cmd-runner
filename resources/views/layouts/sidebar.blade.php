@@ -14,7 +14,10 @@
     if (
         auth()
             ->user()
-            ->hasAnyRole(['admin', 'super-admin'])
+            ->can('manage-users') ||
+        auth()
+            ->user()
+            ->can('view-users')
     ) {
         $links[] = [
             'label' => 'User Management',

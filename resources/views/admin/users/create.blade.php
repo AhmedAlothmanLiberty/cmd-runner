@@ -48,8 +48,12 @@
 
                 <div class="mt-3">
                     <label for="roles" class="form-label">Roles</label>
-                    <x-role-selector :roles="$roles" :selected="old('roles', [])" />
-                    <small class="text-muted">Select one or more roles.</small>
+                    <x-role-selector :roles="$roles" :selected="old('roles', [])" :disabled="$disabledRoleIds ?? []" />
+                    @if (! empty($disabledRoleIds))
+                        <small class="text-muted">Some roles can only be assigned by super admins.</small>
+                    @else
+                        <small class="text-muted">Select one or more roles.</small>
+                    @endif
                     @error('roles')
                         <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror

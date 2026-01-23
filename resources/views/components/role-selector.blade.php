@@ -1,10 +1,12 @@
 @props([
     'roles' => [],          // [id => name]
     'selected' => [],       // array of selected role IDs
+    'disabled' => [],       // array of disabled role IDs
 ])
 
 @php
     $selectedRoles = collect($selected)->map(fn ($id) => (int) $id)->all();
+    $disabledRoles = collect($disabled)->map(fn ($id) => (int) $id)->all();
 @endphp
 
 @once
@@ -55,6 +57,10 @@
         .role-pill input[type="checkbox"]:checked ~ .label-text {
             color: #0b4abf;
         }
+        .role-pill.is-disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
     </style>
 @endonce
 
@@ -63,14 +69,16 @@
         @php
             $fieldId = 'role-' . $id . '-' . uniqid();
             $isChecked = in_array((int) $id, $selectedRoles, true);
+            $isDisabled = in_array((int) $id, $disabledRoles, true);
         @endphp
-        <label class="role-pill" for="{{ $fieldId }}">
+        <label class="role-pill {{ $isDisabled ? 'is-disabled' : '' }}" for="{{ $fieldId }}">
             <input
                 type="checkbox"
                 id="{{ $fieldId }}"
                 name="roles[]"
                 value="{{ $id }}"
                 @checked($isChecked)
+                @disabled($isDisabled)
             >
             <span class="badge-dot"></span>
             <span class="label-text">{{ \Illuminate\Support\Str::headline($roleName) }}</span>

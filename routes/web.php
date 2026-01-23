@@ -21,16 +21,28 @@ Route::get('/dashboard', DashboardController::class)
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
-Route::middleware(['auth', 'role:admin|super-admin'])
+Route::middleware(['auth'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
-        Route::get('/users', [UserManagementController::class, 'index'])->name('users.index');
-        Route::get('/users/create', [UserManagementController::class, 'create'])->name('users.create');
-        Route::post('/users', [UserManagementController::class, 'store'])->name('users.store');
-        Route::get('/users/{user}/edit', [UserManagementController::class, 'edit'])->name('users.edit');
-        Route::put('/users/{user}', [UserManagementController::class, 'update'])->name('users.update');
-        Route::delete('/users/{user}', [UserManagementController::class, 'destroy'])->name('users.destroy');
+        Route::get('/users', [UserManagementController::class, 'index'])
+            ->middleware('permission:view-users|manage-users')
+            ->name('users.index');
+        Route::get('/users/create', [UserManagementController::class, 'create'])
+            ->middleware('permission:create-user|manage-users')
+            ->name('users.create');
+        Route::post('/users', [UserManagementController::class, 'store'])
+            ->middleware('permission:create-user|manage-users')
+            ->name('users.store');
+        Route::get('/users/{user}/edit', [UserManagementController::class, 'edit'])
+            ->middleware('permission:update-user|manage-users')
+            ->name('users.edit');
+        Route::put('/users/{user}', [UserManagementController::class, 'update'])
+            ->middleware('permission:update-user|manage-users')
+            ->name('users.update');
+        Route::delete('/users/{user}', [UserManagementController::class, 'destroy'])
+            ->middleware('permission:delete-user|manage-users')
+            ->name('users.destroy');
     });
 
 Route::middleware(['auth'])

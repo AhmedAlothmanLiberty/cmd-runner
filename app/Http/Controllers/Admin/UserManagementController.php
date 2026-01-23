@@ -26,10 +26,11 @@ class UserManagementController extends Controller
 
     public function create(): View
     {
-        $roles = Role::orderBy('name')->pluck('name', 'id');
+        $roleSelection = $this->roleSelectionData(auth()->user());
 
         return view('admin.users.create', [
-            'roles' => $roles,
+            'roles' => $roleSelection['roles'],
+            'disabledRoleIds' => $roleSelection['disabledRoleIds'],
         ]);
     }
 
@@ -41,10 +42,10 @@ class UserManagementController extends Controller
             'password' => $request->string('password'),
         ]);
 
-        $roleNames = Role::query()
-            ->whereIn('id', $request->input('roles', []))
-            ->pluck('name')
-            ->all();
+        $roleNames = [];
+        if ($this->canAssignRoles($request->user())) {
+            $roleNames = $this->filterRoleNames($request->input('roles', []), $request->user());
+        }
 
         $user->syncRoles($roleNames);
 
@@ -53,40 +54,62 @@ class UserManagementController extends Controller
 
     public function edit(User $user): View
     {
-        $roles = Role::orderBy('name')->pluck('name', 'id');
+        $this->abortIfProtectedUser($user);
+        $roleSelection = $this->roleSelectionData(auth()->user());
         $user->load('roles');
 
         return view('admin.users.edit', [
             'user' => $user,
-            'roles' => $roles,
+            'roles' => $roleSelection['roles'],
+            'disabledRoleIds' => $roleSelection['disabledRoleIds'],
         ]);
     }
 
     public function update(UpdateUserRequest $request, User $user): RedirectResponse
     {
+        $this->abortIfProtectedUser($user);
+        $actor = $request->user();
+        $canUpdateProfile = $actor?->can('manage-users') || $actor?->can('update-user');
+        $canChangePassword = $actor?->can('manage-users') || $actor?->can('change-user-password');
+
+        if (! $canUpdateProfile && ! $canChangePassword) {
+            abort(403);
+        }
+
+        if (! $canUpdateProfile) {
+            if (
+                $request->string('name')->toString() !== $user->name ||
+                $request->string('email')->toString() !== $user->email
+            ) {
+                abort(403);
+            }
+        }
+
         $user->fill([
             'name' => $request->string('name'),
             'email' => $request->string('email'),
         ]);
 
         if ($request->filled('password')) {
+            if (! $canChangePassword) {
+                abort(403);
+            }
             $user->password = $request->string('password');
         }
 
         $user->save();
 
-        $roleNames = Role::query()
-            ->whereIn('id', $request->input('roles', []))
-            ->pluck('name')
-            ->all();
-
-        $user->syncRoles($roleNames);
+        if ($this->canAssignRoles($request->user())) {
+            $roleNames = $this->filterRoleNames($request->input('roles', []), $request->user(), $user);
+            $user->syncRoles($roleNames);
+        }
 
         return redirect()->route('admin.users.index')->with('status', 'User updated.');
     }
 
     public function destroy(User $user): RedirectResponse
     {
+        $this->abortIfProtectedUser($user);
         // Prevent locking yourself out
         if (auth()->id() === $user->id) {
             return back()->with('status', 'You cannot delete your own account.');
@@ -95,5 +118,76 @@ class UserManagementController extends Controller
         $user->delete();
 
         return redirect()->route('admin.users.index')->with('status', 'User deleted.');
+    }
+
+    private function canAssignRoles(?User $actor): bool
+    {
+        if (! $actor) {
+            return false;
+        }
+
+        return $actor->can('manage-users')
+            || $actor->can('assign-roles')
+            || $actor->can('assign-admin-roles');
+    }
+
+    private function canAssignAdminRoles(?User $actor): bool
+    {
+        if (! $actor) {
+            return false;
+        }
+
+        return $actor->hasRole('super-admin') || $actor->can('assign-admin-roles');
+    }
+
+    private function roleSelectionData(?User $actor): array
+    {
+        $roles = Role::orderBy('name')->get(['id', 'name']);
+        $disabledRoleIds = [];
+
+        if (! $this->canAssignRoles($actor)) {
+            $disabledRoleIds = $roles->pluck('id')->all();
+        } elseif (! $this->canAssignAdminRoles($actor)) {
+            $disabledRoleIds = $roles
+                ->whereIn('name', ['admin', 'super-admin'])
+                ->pluck('id')
+                ->all();
+        }
+
+        return [
+            'roles' => $roles->pluck('name', 'id'),
+            'disabledRoleIds' => $disabledRoleIds,
+        ];
+    }
+
+    private function filterRoleNames(array $roleIds, ?User $actor, ?User $target = null): array
+    {
+        $roleIds = array_map('intval', $roleIds);
+        $query = Role::query()->whereIn('id', $roleIds);
+
+        if (! $this->canAssignAdminRoles($actor)) {
+            $query->whereNotIn('name', ['admin', 'super-admin']);
+        }
+
+        $roleNames = $query->pluck('name')->all();
+
+        if ($target && ! $this->canAssignAdminRoles($actor)) {
+            $protectedRoles = $target->roles()
+                ->whereIn('name', ['admin', 'super-admin'])
+                ->pluck('name')
+                ->all();
+
+            $roleNames = array_values(array_unique(array_merge($roleNames, $protectedRoles)));
+        }
+
+        return $roleNames;
+    }
+
+    private function abortIfProtectedUser(User $user): void
+    {
+        $actor = auth()->user();
+        if ($user->hasRole('super-admin') && ! $actor?->hasRole('super-admin')) {
+            abort(403);
+        }
     }
 }
