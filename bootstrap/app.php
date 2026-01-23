@@ -44,6 +44,9 @@ return Application::configure(basePath: dirname(__DIR__))
             \Cmd\Reports\Console\Commands\GenerateCompanyStatsReport::class,
             \Cmd\Reports\Console\Commands\GenerateLegalReport::class,
             \Cmd\Reports\Console\Commands\GenerateSyncSummary::class,
+            \Cmd\Reports\Console\Commands\GenerateReportSummary::class,
+
+            
 
 
         ], fn(string $c) => class_exists($c))),

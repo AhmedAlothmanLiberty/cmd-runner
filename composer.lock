@@ -2365,12 +2365,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/AhmedAlothmanLiberty/cmd-reports.git",
-                "reference": "dc22decd3c2c5932eb4a50918178fb5747a85265"
+                "reference": "1a685eb316810cc7ac5190d2b5ddab1c2b624f44"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AhmedAlothmanLiberty/cmd-reports/zipball/dc22decd3c2c5932eb4a50918178fb5747a85265",
-                "reference": "dc22decd3c2c5932eb4a50918178fb5747a85265",
+                "url": "https://api.github.com/repos/AhmedAlothmanLiberty/cmd-reports/zipball/1a685eb316810cc7ac5190d2b5ddab1c2b624f44",
+                "reference": "1a685eb316810cc7ac5190d2b5ddab1c2b624f44",
                 "shasum": ""
             },
             "require": {
@@ -2398,7 +2398,7 @@
                 "issues": "https://github.com/AhmedAlothmanLiberty/cmd-reports/issues",
                 "source": "https://github.com/AhmedAlothmanLiberty/cmd-reports/tree/dev"
             },
-            "time": "2026-01-15T20:51:16+00:00"
+            "time": "2026-01-23T22:18:38+00:00"
         },
         {
             "name": "maennchen/zipstream-php",
