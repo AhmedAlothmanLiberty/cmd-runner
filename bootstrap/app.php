@@ -38,13 +38,13 @@ return Application::configure(basePath: dirname(__DIR__))
             \Cmd\Reports\Console\Commands\SyncVeritasTransactions::class,
             \Cmd\Reports\Console\Commands\SyncNegotiatorPayrollData::class,
             \Cmd\Reports\Console\Commands\SyncEnrollmentDataTemp::class,
-            \Cmd\Reports\Console\Commands\GenerateWelcomeLetterReport::class,
-            \Cmd\Reports\Console\Commands\GenerateWelcomePacketReport::class,
-            \Cmd\Reports\Console\Commands\GenerateLookbackSummaryReport::class,
-            \Cmd\Reports\Console\Commands\GenerateCompanyStatsReport::class,
-            \Cmd\Reports\Console\Commands\GenerateLegalReport::class,
-            \Cmd\Reports\Console\Commands\GenerateSyncSummary::class,
-            \Cmd\Reports\Console\Commands\GenerateReportSummary::class,
+            \Cmd\Reports\Console\Commands\GenerateWelcomeLetterReport\GenerateWelcomeLetterReport::class,
+            \Cmd\Reports\Console\Commands\GenerateWelcomePacketReport\GenerateWelcomePacketReport::class,
+            \Cmd\Reports\Console\Commands\GenerateLookbackSummaryReport\GenerateLookbackSummaryReport::class,
+            \Cmd\Reports\Console\Commands\GenerateCompanyStatsReport\GenerateCompanyStatsReport::class,
+            \Cmd\Reports\Console\Commands\GenerateLegalReport\GenerateLegalReport::class,
+            \Cmd\Reports\Console\Commands\GenerateSyncSummary\GenerateSyncSummary::class,
+            \Cmd\Reports\Console\Commands\GenerateReportSummary\GenerateReportSummary::class,
 
             
 
