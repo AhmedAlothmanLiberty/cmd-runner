@@ -143,13 +143,11 @@
 	                        </a>
 	                    @endcan
 	                @endif
-
+                            
 	                @if (($isAllTasks ?? false) && isset($exportUrl))
-	                    @can('export-tasks-csv')
 	                        <a href="{{ $exportUrl }}" class="btn btn-outline-secondary">
 	                            <i class="bi bi-download me-1"></i> Export CSV
 	                        </a>
-	                    @endcan
 	                @endif
 
 	                @can('create', \App\Models\Task::class)
@@ -164,7 +162,7 @@
 	    <div class="card shadow-sm border-0">
 	        <div class="card-body p-0">
 	            <div class="border-bottom bg-light px-3 py-3">
-	                <form method="GET" action="{{ $filterAction ?? route('admin.tasks.index') }}" class="row g-2 align-items-end">
+                <form method="GET" action="{{ $filterAction ?? route('admin.tasks.index') }}" class="row g-3 align-items-end">
 	                    <div class="col-12 col-md-5 col-lg-4">
 	                        <label class="form-label mb-1">Search</label>
 	                        <input
@@ -204,16 +202,6 @@
                             <option value="high" @selected(($filters['priority'] ?? '') === 'high')>High</option>
                         </select>
                     </div>
-                    <div class="col-6 col-md-3 col-lg-2">
-                        <label class="form-label mb-1">Per page</label>
-                        <select name="per_page" class="form-select">
-                            @foreach ($perPageOptions ?? ['15', '25', '50', 'all'] as $option)
-                                <option value="{{ $option }}" @selected((string) ($filters['per_page'] ?? '15') === (string) $option)>
-                                    {{ $option === 'all' ? 'All' : $option }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
                     <div class="col-12 col-md-4 col-lg-2">
                         <label class="form-label mb-1">Assigned to</label>
                         <select name="assigned_to" class="form-select">
@@ -228,14 +216,45 @@
                             @endforeach
                         </select>
                     </div>
-	                    <div class="col-12 col-md-auto d-flex gap-2">
-	                        <button type="submit" class="btn btn-primary">
-	                            <i class="bi bi-funnel me-1"></i> Filter
-	                        </button>
-	                        <a href="{{ $resetUrl ?? route('admin.tasks.index') }}" class="btn btn-outline-secondary">
-	                            Reset
-	                        </a>
-	                    </div>
+                    @if ($isAllTasks ?? false)
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <label class="form-label mb-1">Updated range</label>
+                            <div class="d-flex gap-2">
+                                <input
+                                    type="date"
+                                    name="date_from"
+                                    class="form-control"
+                                    value="{{ $filters['date_from'] ?? '' }}"
+                                    aria-label="Updated from"
+                                />
+                                <input
+                                    type="date"
+                                    name="date_to"
+                                    class="form-control"
+                                    value="{{ $filters['date_to'] ?? '' }}"
+                                    aria-label="Updated to"
+                                />
+                            </div>
+                        </div>
+                    @endif
+                    <div class="col-6 col-md-3 col-lg-2 ms-auto">
+                        <label class="form-label mb-1">Per page</label>
+                        <select name="per_page" class="form-select">
+                            @foreach ($perPageOptions ?? ['15', '25', '50', 'all'] as $option)
+                                <option value="{{ $option }}" @selected((string) ($filters['per_page'] ?? '15') === (string) $option)>
+                                    {{ $option === 'all' ? 'All' : $option }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-auto d-flex gap-2 justify-content-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-funnel me-1"></i> Filter
+                        </button>
+                        <a href="{{ $resetUrl ?? route('admin.tasks.index') }}" class="btn btn-outline-secondary">
+                            Reset
+                        </a>
+                    </div>
 	                </form>
             </div>
 
@@ -255,9 +274,9 @@
                             <th>Status</th>
                             <th>Priority</th>
                             <th>Assigned</th>
-                            <th>Reporter</th>
-                            <th class="text-nowrap">Due</th>
+                            <th class="text-nowrap">Created</th>
                             <th class="text-nowrap">Updated</th>
+                            <th>Updated by</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -311,14 +330,14 @@
                                 <td class="small text-muted">
                                     {{ $task->assignedTo?->name ?? 'Unassigned' }}
                                 </td>
-                                <td class="small text-muted">
-                                    {{ $task->createdBy?->name ?? '—' }}
-                                </td>
                                 <td class="small text-muted text-nowrap">
-                                    {{ $task->due_at ? $task->due_at->format('Y-m-d H:i') : '—' }}
+                                    {{ $task->created_at ? $task->created_at->format('Y-m-d') : '—' }}
                                 </td>
                                 <td class="small text-muted text-nowrap">
                                     {{ $task->updated_at ? $task->updated_at->diffForHumans() : '—' }}
+                                </td>
+                                <td class="small text-muted">
+                                    {{ $task->updatedBy?->name ?? '—' }}
                                 </td>
 	                                <td class="text-end text-nowrap">
 	                                    @if (auth()->user()?->can('update', $task) || auth()->user()?->can('delete', $task))
@@ -348,9 +367,9 @@
 	                                    @endif
 	                                </td>
 	                            </tr>
-	                        @empty
+                        @empty
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">No tasks yet.</td>
+                                <td colspan="11" class="text-center text-muted py-4">No tasks yet.</td>
                             </tr>
                         @endforelse
                     </tbody>

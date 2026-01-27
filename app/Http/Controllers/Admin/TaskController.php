@@ -15,6 +15,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -182,6 +183,10 @@ class TaskController extends Controller
         $priority = $request->input('priority');
         $assignedTo = $request->input('assigned_to');
         $categoryId = $request->input('category_id');
+        $dateFromInput = $request->input('date_from');
+        $dateToInput = $request->input('date_to');
+        $dateFrom = $this->parseFilterDate($dateFromInput);
+        $dateTo = $this->parseFilterDate($dateToInput);
         $perPage = $request->input('per_page', '15');
         $perPageOptions = ['15', '25', '50', 'all'];
         if (! in_array((string) $perPage, $perPageOptions, true)) {
@@ -213,6 +218,17 @@ class TaskController extends Controller
             });
         }
 
+        if ($dateFrom && $dateTo) {
+            $query->whereBetween('updated_at', [
+                $dateFrom->copy()->startOfDay(),
+                $dateTo->copy()->endOfDay(),
+            ]);
+        } elseif ($dateFrom) {
+            $query->where('updated_at', '>=', $dateFrom->copy()->startOfDay());
+        } elseif ($dateTo) {
+            $query->where('updated_at', '<=', $dateTo->copy()->endOfDay());
+        }
+
         $perPageValue = $perPage === 'all' ? max(1, (int) $query->count()) : (int) $perPage;
         $tasks = $query
             ->orderByDesc('updated_at')
@@ -225,6 +241,8 @@ class TaskController extends Controller
             'priority' => $priority,
             'assigned_to' => $assignedTo,
             'category_id' => $categoryId,
+            'date_from' => (string) $dateFromInput,
+            'date_to' => (string) $dateToInput,
             'per_page' => (string) $perPage,
         ];
 
@@ -265,6 +283,10 @@ class TaskController extends Controller
         $priority = $request->input('priority');
         $assignedTo = $request->input('assigned_to');
         $categoryId = $request->input('category_id');
+        $dateFromInput = $request->input('date_from');
+        $dateToInput = $request->input('date_to');
+        $dateFrom = $this->parseFilterDate($dateFromInput);
+        $dateTo = $this->parseFilterDate($dateToInput);
 
         if ($search !== '') {
             $query->where(function ($q) use ($search): void {
@@ -289,6 +311,17 @@ class TaskController extends Controller
             $query->whereHas('labels', function ($q) use ($categoryId): void {
                 $q->where('task_labels.id', $categoryId);
             });
+        }
+
+        if ($dateFrom && $dateTo) {
+            $query->whereBetween('updated_at', [
+                $dateFrom->copy()->startOfDay(),
+                $dateTo->copy()->endOfDay(),
+            ]);
+        } elseif ($dateFrom) {
+            $query->where('updated_at', '>=', $dateFrom->copy()->startOfDay());
+        } elseif ($dateTo) {
+            $query->where('updated_at', '<=', $dateTo->copy()->endOfDay());
         }
 
         $fileName = 'all-tasks-' . now()->format('Y-m-d-His') . '.csv';
@@ -455,6 +488,19 @@ class TaskController extends Controller
         return redirect()
             ->route($this->returnRouteName($request), $redirectFilters)
             ->with('status', 'Task created.');
+    }
+
+    private function parseFilterDate(?string $value): ?Carbon
+    {
+        if (! $value) {
+            return null;
+        }
+
+        try {
+            return Carbon::createFromFormat('Y-m-d', $value);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public function edit(Task $task): View
