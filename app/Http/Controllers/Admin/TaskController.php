@@ -180,6 +180,7 @@ class TaskController extends Controller
 
         $search = trim((string) $request->input('search', ''));
         $status = $request->input('status');
+        $statusList = $this->normalizeStatusFilter($status);
         $priority = $request->input('priority');
         $assignedTo = $request->input('assigned_to');
         $categoryId = $request->input('category_id');
@@ -200,8 +201,12 @@ class TaskController extends Controller
             });
         }
 
-        if ($status !== null && $status !== '') {
-            $query->where('status', $status);
+        if (! empty($statusList)) {
+            if (count($statusList) === 1) {
+                $query->where('status', $statusList[0]);
+            } else {
+                $query->whereIn('status', $statusList);
+            }
         }
 
         if (in_array($priority, ['low', 'medium', 'high'], true)) {
@@ -237,7 +242,7 @@ class TaskController extends Controller
 
         $filters = [
             'search' => $search,
-            'status' => $status,
+            'status' => $statusList,
             'priority' => $priority,
             'assigned_to' => $assignedTo,
             'category_id' => $categoryId,
@@ -280,6 +285,7 @@ class TaskController extends Controller
 
         $search = trim((string) $request->input('search', ''));
         $status = $request->input('status');
+        $statusList = $this->normalizeStatusFilter($status);
         $priority = $request->input('priority');
         $assignedTo = $request->input('assigned_to');
         $categoryId = $request->input('category_id');
@@ -295,8 +301,12 @@ class TaskController extends Controller
             });
         }
 
-        if ($status !== null && $status !== '') {
-            $query->where('status', $status);
+        if (! empty($statusList)) {
+            if (count($statusList) === 1) {
+                $query->where('status', $statusList[0]);
+            } else {
+                $query->whereIn('status', $statusList);
+            }
         }
 
         if (in_array($priority, ['low', 'medium', 'high'], true)) {
@@ -501,6 +511,21 @@ class TaskController extends Controller
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * @return string[]
+     */
+    private function normalizeStatusFilter(mixed $status): array
+    {
+        if (is_array($status)) {
+            $items = array_filter($status, static fn($value) => $value !== null && $value !== '');
+        } else {
+            $value = is_string($status) ? trim($status) : '';
+            $items = $value === '' ? [] : [$value];
+        }
+
+        return array_values(array_map('strval', $items));
     }
 
     public function edit(Task $task): View

@@ -173,15 +173,24 @@
                             placeholder="Title or description"
                         />
                     </div>
-	                    <div class="col-6 col-md-3 col-lg-2">
-	                        <label class="form-label mb-1">Status</label>
-	                        <select name="status" class="form-select">
-	                            <option value="">All</option>
-	                            @foreach ($statusOptions as $value => $label)
-	                                <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
-	                            @endforeach
-	                        </select>
-	                    </div>
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label mb-1">Status</label>
+                        @if ($isAllTasks ?? false)
+                            <x-multi-select
+                                name="status"
+                                :options="$statusOptions"
+                                :selected="($filters['status'] ?? [])"
+                                placeholder="All statuses"
+                            />
+                        @else
+                            <select name="status" class="form-select">
+                                <option value="">All</option>
+                                @foreach ($statusOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        @endif
+                    </div>
                     <div class="col-6 col-md-3 col-lg-2">
                         <label class="form-label mb-1">Category</label>
                         <select name="category_id" class="form-select">
