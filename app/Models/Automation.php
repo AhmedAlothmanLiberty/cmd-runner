@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Cron\CronExpression;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -61,6 +62,48 @@ class Automation extends Model
     public function logs(): HasMany
     {
         return $this->hasMany(AutomationLog::class)->latest();
+    }
+
+    public function scopeApplyIndexFilters(Builder $query, array $filters): Builder
+    {
+        $search = trim((string) ($filters['search'] ?? ''));
+        $status = $filters['status'] ?? null;
+        $scheduleMode = $filters['schedule_mode'] ?? null;
+        $lastRunStatus = $filters['last_run_status'] ?? null;
+        $createdBy = trim((string) ($filters['created_by'] ?? ''));
+        $updatedBy = trim((string) ($filters['updated_by'] ?? ''));
+
+        if ($search !== '') {
+            $query->where(function (Builder $builder) use ($search): void {
+                $builder->where('name', 'like', "%{$search}%")
+                    ->orWhere('slug', 'like', "%{$search}%")
+                    ->orWhere('command', 'like', "%{$search}%");
+            });
+        }
+
+        if (in_array($status, ['active', 'inactive'], true)) {
+            $query->where('is_active', $status === 'active');
+        }
+
+        if (in_array($scheduleMode, ['daily', 'custom'], true)) {
+            $query->where('schedule_mode', $scheduleMode);
+        }
+
+        if (in_array($lastRunStatus, ['success', 'failed'], true)) {
+            $query->where('last_run_status', $lastRunStatus);
+        } elseif ($lastRunStatus === 'never') {
+            $query->whereNull('last_run_at');
+        }
+
+        if ($createdBy !== '') {
+            $query->where('created_by', $createdBy);
+        }
+
+        if ($updatedBy !== '') {
+            $query->where('updated_by', $updatedBy);
+        }
+
+        return $query;
     }
 
     public function shouldRunNow(bool $runNow = false): bool

@@ -8,29 +8,21 @@ use App\Models\Automation;
 use App\Models\AutomationLog;
 use App\Models\User;
 use App\Notifications\AutomationEventNotification;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AutomationController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|StreamedResponse
     {
-        $query = Automation::query();
+        $filters = $this->getIndexFilters($request);
+        $query = Automation::query()->applyIndexFilters($filters);
 
-        $search = trim((string) $request->input('search', ''));
-        $status = $request->input('status');
-
-        if ($search !== '') {
-            $query->where(function ($q) use ($search): void {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('slug', 'like', "%{$search}%")
-                    ->orWhere('command', 'like', "%{$search}%");
-            });
-        }
-
-        if (in_array($status, ['active', 'inactive'], true)) {
-            $query->where('is_active', $status === 'active');
+        if ($request->input('export') === 'csv') {
+            return $this->exportCsv($query);
         }
 
         $automations = $query
@@ -52,12 +44,38 @@ class AutomationController extends Controller
                 ->pluck('name', 'email')
                 ->toArray();
 
-        $filters = [
-            'search' => $search,
-            'status' => $status,
-        ];
+        $filterUserEmails = Automation::query()
+            ->select('created_by')
+            ->whereNotNull('created_by')
+            ->where('created_by', '!=', '')
+            ->distinct()
+            ->pluck('created_by')
+            ->merge(
+                Automation::query()
+                    ->select('updated_by')
+                    ->whereNotNull('updated_by')
+                    ->where('updated_by', '!=', '')
+                    ->distinct()
+                    ->pluck('updated_by')
+            )
+            ->unique()
+            ->sort()
+            ->values();
 
-        return view('admin.automations.index', compact('automations', 'filters', 'userNamesByEmail'));
+        $filterUserNamesByEmail = $filterUserEmails->isEmpty()
+            ? []
+            : User::query()
+                ->whereIn('email', $filterUserEmails)
+                ->pluck('name', 'email')
+                ->toArray();
+
+        return view('admin.automations.index', compact(
+            'automations',
+            'filters',
+            'userNamesByEmail',
+            'filterUserEmails',
+            'filterUserNamesByEmail'
+        ));
     }
 
     public function create(): View
@@ -242,5 +260,71 @@ class AutomationController extends Controller
                 $actorName
             ));
         });
+    }
+
+    private function getIndexFilters(Request $request): array
+    {
+        return [
+            'search' => trim((string) $request->input('search', '')),
+            'status' => $request->input('status'),
+            'schedule_mode' => $request->input('schedule_mode'),
+            'last_run_status' => $request->input('last_run_status'),
+            'created_by' => trim((string) $request->input('created_by', '')),
+            'updated_by' => trim((string) $request->input('updated_by', '')),
+        ];
+    }
+
+    private function exportCsv(Builder $query): StreamedResponse
+    {
+        $fileName = 'automations-' . now()->format('Ymd-His') . '.csv';
+
+        return response()->streamDownload(function () use ($query): void {
+            $handle = fopen('php://output', 'w');
+            if ($handle === false) {
+                return;
+            }
+
+            fputcsv($handle, [
+                'ID',
+                'Name',
+                'Slug',
+                'Command',
+                'Status',
+                'Schedule Mode',
+                'Timezone',
+                'Last Run At',
+                'Last Run Status',
+                'Last Runtime (ms)',
+                'Created By',
+                'Updated By',
+                'Updated At',
+            ]);
+
+            $query
+                ->orderByDesc('updated_at')
+                ->chunk(250, function ($automations) use ($handle): void {
+                    foreach ($automations as $automation) {
+                        fputcsv($handle, [
+                            $automation->id,
+                            $automation->name,
+                            $automation->slug,
+                            $automation->command,
+                            $automation->is_active ? 'active' : 'inactive',
+                            $automation->schedule_mode ?: 'daily',
+                            $automation->timezone,
+                            optional($automation->last_run_at)->toDateTimeString(),
+                            $automation->last_run_status,
+                            $automation->last_runtime_ms,
+                            $automation->created_by,
+                            $automation->updated_by,
+                            optional($automation->updated_at)->toDateTimeString(),
+                        ]);
+                    }
+                });
+
+            fclose($handle);
+        }, $fileName, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 }

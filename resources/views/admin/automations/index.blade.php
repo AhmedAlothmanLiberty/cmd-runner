@@ -1,16 +1,70 @@
 <x-app-layout>
     @once
         <style>
+            .automation-shell {
+                background:
+                    radial-gradient(1200px 300px at -5% -20%, rgba(14, 165, 233, 0.12), transparent 60%),
+                    radial-gradient(900px 250px at 110% -30%, rgba(16, 185, 129, 0.1), transparent 60%);
+                border-radius: 1rem;
+            }
+            .automation-card {
+                border-radius: 1rem;
+                overflow: hidden;
+            }
+            .filter-panel {
+                background: linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .filter-panel .form-label {
+                font-size: 0.75rem;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                color: #475569;
+                font-weight: 700;
+            }
+            .filter-panel .form-control,
+            .filter-panel .form-select {
+                border-color: #cbd5e1;
+                box-shadow: none;
+            }
+            .filter-panel .form-control:focus,
+            .filter-panel .form-select:focus {
+                border-color: #0ea5e9;
+                box-shadow: 0 0 0 0.15rem rgba(14, 165, 233, 0.16);
+            }
+            .quick-stats {
+                display: flex;
+                gap: 0.5rem;
+                flex-wrap: wrap;
+            }
+            .quick-stats .stat-pill {
+                display: inline-flex;
+                align-items: center;
+                border: 1px solid #dbeafe;
+                background: #f0f9ff;
+                color: #0f172a;
+                border-radius: 999px;
+                padding: 0.25rem 0.7rem;
+                font-size: 0.78rem;
+                font-weight: 600;
+            }
             .automation-table td, .automation-table th {
                 padding: 0.85rem 1rem;
                 vertical-align: middle;
+            }
+            .automation-table thead th {
+                font-size: 0.78rem;
+                letter-spacing: 0.03em;
+                text-transform: uppercase;
+                color: #64748b;
+                font-weight: 700;
             }
             .automation-table tbody tr {
                 border-left: 4px solid transparent;
                 transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
             }
             .automation-table tbody tr:hover {
-                background: #f8fafc;
+                background: #f8fbff;
                 border-color: #0ea5e9;
                 box-shadow: inset 0 1px 0 rgba(0,0,0,0.03), inset 0 -1px 0 rgba(0,0,0,0.03);
             }
@@ -35,6 +89,14 @@
                 letter-spacing: 0.02em;
             }
             .dropdown .dropdown-item i { color: #94a3b8; }
+            .filters-actions {
+                display: flex;
+                gap: 0.5rem;
+                flex-wrap: wrap;
+            }
+            .filters-actions .btn {
+                white-space: nowrap;
+            }
         </style>
     @endonce
 
@@ -52,11 +114,38 @@
         </div>
     </x-slot>
 
-    <div class="card shadow-sm border-0">
+    <div class="automation-shell p-1">
+    <div class="card shadow-sm border-0 automation-card">
         <div class="card-body p-0">
-            <div class="border-bottom bg-light px-3 py-3">
+            <div class="filter-panel px-3 py-3">
+                @php
+                    $activeFilterCount = collect([
+                        'search' => trim((string) ($filters['search'] ?? '')),
+                        'status' => $filters['status'] ?? null,
+                        'schedule_mode' => $filters['schedule_mode'] ?? null,
+                        'last_run_status' => $filters['last_run_status'] ?? null,
+                        'created_by' => trim((string) ($filters['created_by'] ?? '')),
+                        'updated_by' => trim((string) ($filters['updated_by'] ?? '')),
+                    ])->filter(static fn ($value) => $value !== null && $value !== '')->count();
+
+                    $currentItems = $automations->getCollection();
+                    $activeItems = $currentItems->where('is_active', true)->count();
+                    $inactiveItems = $currentItems->where('is_active', false)->count();
+                @endphp
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                    <div class="quick-stats">
+                        <span class="stat-pill"><i class="bi bi-grid me-1"></i> Page total: {{ $currentItems->count() }}</span>
+                        <span class="stat-pill"><i class="bi bi-check2-circle me-1"></i> Active: {{ $activeItems }}</span>
+                        <span class="stat-pill"><i class="bi bi-pause-circle me-1"></i> Inactive: {{ $inactiveItems }}</span>
+                    </div>
+                    @if ($activeFilterCount > 0)
+                        <span class="badge text-bg-info">
+                            {{ $activeFilterCount }} active filter{{ $activeFilterCount > 1 ? 's' : '' }}
+                        </span>
+                    @endif
+                </div>
                 <form method="GET" action="{{ route('admin.automations.index') }}" class="row g-2 align-items-end">
-                    <div class="col-12 col-md-6 col-lg-5">
+                    <div class="col-12 col-md-6 col-lg-4">
                         <label class="form-label mb-1">Search</label>
                         <input
                             type="text"
@@ -74,12 +163,54 @@
                             <option value="inactive" @selected(($filters['status'] ?? '') === 'inactive')>Inactive</option>
                         </select>
                     </div>
-                    <div class="col-12 col-md-auto d-flex gap-2">
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label mb-1">Schedule</label>
+                        <select name="schedule_mode" class="form-select">
+                            <option value="">All</option>
+                            <option value="daily" @selected(($filters['schedule_mode'] ?? '') === 'daily')>Daily</option>
+                            <option value="custom" @selected(($filters['schedule_mode'] ?? '') === 'custom')>Custom</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <label class="form-label mb-1">Last run</label>
+                        <select name="last_run_status" class="form-select">
+                            <option value="">All</option>
+                            <option value="success" @selected(($filters['last_run_status'] ?? '') === 'success')>Success</option>
+                            <option value="failed" @selected(($filters['last_run_status'] ?? '') === 'failed')>Failed</option>
+                            <option value="never" @selected(($filters['last_run_status'] ?? '') === 'never')>Never ran</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label mb-1">Created by</label>
+                        <select name="created_by" class="form-select">
+                            <option value="">All</option>
+                            @foreach (($filterUserEmails ?? collect()) as $email)
+                                <option value="{{ $email }}" @selected(($filters['created_by'] ?? '') === $email)>
+                                    {{ $filterUserNamesByEmail[$email] ?? $email }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label mb-1">Updated by</label>
+                        <select name="updated_by" class="form-select">
+                            <option value="">All</option>
+                            @foreach (($filterUserEmails ?? collect()) as $email)
+                                <option value="{{ $email }}" @selected(($filters['updated_by'] ?? '') === $email)>
+                                    {{ $filterUserNamesByEmail[$email] ?? $email }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-auto filters-actions">
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-funnel me-1"></i> Filter
                         </button>
-                        <a href="{{ route('admin.automations.index') }}" class="btn btn-outline-secondary">
-                            Reset
+                        <button type="submit" name="export" value="csv" class="btn btn-outline-primary">
+                            <i class="bi bi-download me-1"></i> Export CSV
+                        </button>
+                        <a href="{{ route('admin.automations.index') }}" class="btn btn-outline-warning">
+                            Clear filters
                         </a>
                     </div>
                 </form>
@@ -212,6 +343,7 @@
                 {{ $automations->links() }}
             </div>
         </div>
+    </div>
     </div>
 </x-app-layout>
 
