@@ -46,6 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \Cmd\Reports\Console\Commands\GenerateSyncSummary\GenerateSyncSummary::class,
             \Cmd\Reports\Console\Commands\GenerateReportSummary\GenerateReportSummary::class,
             \Cmd\Reports\Console\Commands\GenerateDroppedReport\GenerateDroppedReport::class,
+            \Cmd\Reports\Console\Commands\RefreshForthApiTokens::class,
             
 
             
