@@ -5,6 +5,7 @@ import sys
 import pyarrow as pa
 import pyarrow.csv as pa_csv
 import pyarrow.parquet as pq
+from pandas.errors import ParserError
 
 csv_path = sys.argv[1]
 parquet_path = sys.argv[2]
@@ -28,6 +29,12 @@ def replace_tmp_file() -> None:
 def remove_tmp_file() -> None:
     if os.path.exists(parquet_tmp_path):
         os.remove(parquet_tmp_path)
+
+
+def replace_tmp_with_dataframe(dataframe) -> int:
+    dataframe.to_parquet(parquet_tmp_path, engine="pyarrow", compression=compression, index=False)
+    replace_tmp_file()
+    return len(dataframe.index)
 
 
 def build_invalid_row_handler(mode: str | None):
@@ -176,10 +183,72 @@ def write_excel_to_parquet() -> int:
             "Excel read failed. Convert the file to CSV before upload, or install the required engine."
         ) from exc
 
-    table = pa.Table.from_pandas(dataframe, preserve_index=False)
-    pq.write_table(table, parquet_tmp_path, compression=compression)
-    replace_tmp_file()
-    return len(dataframe.index)
+    return replace_tmp_with_dataframe(dataframe)
+
+
+def write_csv_with_pandas_legacy() -> int:
+    import pandas as pd
+
+    encoding_override = os.getenv("EE_CSV_ENCODING")
+    encodings = [encoding_override] if encoding_override else [
+        "utf-8",
+        "utf-8-sig",
+        "cp1252",
+        "latin1",
+    ]
+    delimiter = os.getenv("EE_CSV_DELIMITER")
+    on_bad_lines = os.getenv("EE_CSV_ON_BAD_LINES")
+    if on_bad_lines not in {None, "error", "warn", "skip"}:
+        on_bad_lines = None
+
+    def read_csv_with(encoding: str, **overrides):
+        options = {}
+        if delimiter:
+            options["sep"] = delimiter
+        if on_bad_lines and "on_bad_lines" not in overrides:
+            options["on_bad_lines"] = on_bad_lines
+        options.update(overrides)
+        return pd.read_csv(csv_path, encoding=encoding, **options)
+
+    dataframe = None
+    last_error = None
+
+    for encoding in encodings:
+        if not encoding:
+            continue
+
+        try:
+            dataframe = read_csv_with(encoding)
+            break
+        except UnicodeDecodeError as exc:
+            last_error = exc
+        except ParserError as exc:
+            last_error = exc
+            fallback = {"engine": "python"}
+            if not delimiter:
+                fallback["sep"] = None
+            try:
+                dataframe = read_csv_with(encoding, **fallback)
+                break
+            except Exception as fallback_exc:
+                last_error = fallback_exc
+
+    if dataframe is None and last_error is not None:
+        raise last_error
+
+    if dataframe is None:
+        raise RuntimeError("CSV conversion failed before reading any data.")
+
+    return replace_tmp_with_dataframe(dataframe)
+
+
+def resolve_csv_engine() -> str:
+    engine = os.getenv("EE_CSV_ENGINE", "pandas_legacy").strip().lower()
+
+    if engine not in {"pandas_legacy", "pyarrow_stream"}:
+        return "pandas_legacy"
+
+    return engine
 
 
 def convert_to_parquet() -> int:
@@ -187,6 +256,9 @@ def convert_to_parquet() -> int:
 
     if ext in {".xlsx", ".xls"}:
         return write_excel_to_parquet()
+
+    if resolve_csv_engine() == "pandas_legacy":
+        return write_csv_with_pandas_legacy()
 
     encoding_override = os.getenv("EE_CSV_ENCODING")
     encodings = [encoding_override] if encoding_override else [
