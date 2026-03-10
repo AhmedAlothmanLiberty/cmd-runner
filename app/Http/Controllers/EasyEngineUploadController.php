@@ -34,11 +34,14 @@ class EasyEngineUploadController extends Controller
         ]);
 
         $file  = $request->file('file');
-        $date  = \Carbon\Carbon::parse($data['drop_date']);
+        $date  = Carbon::parse($data['drop_date']);
         $state = strtoupper(trim($data['state']));
 
-        $bucket = env('EE_S3_BUCKET');
-        if (!$bucket) abort(500, 'Missing EE_S3_BUCKET in .env');
+        $targetBuckets = $this->resolveTargetBuckets();
+        if ($targetBuckets === []) {
+            abort(500, 'Missing EE_S3_BUCKET (or EE_S3_BUCKETS) in .env');
+        }
+        $primaryBucket = $targetBuckets[0];
 
         $safeOriginal = preg_replace('/[^A-Za-z0-9._-]+/', '_', $file->getClientOriginalName());
 
@@ -84,15 +87,47 @@ class EasyEngineUploadController extends Controller
             'sha256'        => $sha256,
             'drop_date'     => $date->toDateString(),
             'state'         => $state,
-            's3_bucket'     => $bucket,
+            's3_bucket'     => $primaryBucket,
             's3_key'        => $key,
             'status'        => S3UploadJob::STATUS_QUEUED, // add this const if missing
-            'meta'          => ['phase' => 'queued'],
+            'meta'          => [
+                'phase' => 'queued',
+                'target_buckets' => $targetBuckets,
+            ],
         ]);
 
         EasyEngineProcessUpload::dispatch($job->id);
 
-        return back()->with('ok', "Queued job #{$job->id}. It will upload parquet to s3://{$bucket}/{$key}");
+        $destinations = implode(', ', array_map(
+            static fn (string $bucket): string => "s3://{$bucket}/{$key}",
+            $targetBuckets
+        ));
+
+        return back()->with('ok', "Queued job #{$job->id}. It will upload parquet to {$destinations}");
+    }
+
+    private function resolveTargetBuckets(): array
+    {
+        $buckets = [];
+
+        $configuredBucketList = trim((string) env('EE_S3_BUCKETS', ''));
+        if ($configuredBucketList !== '') {
+            foreach (explode(',', $configuredBucketList) as $bucket) {
+                $bucket = trim($bucket);
+                if ($bucket !== '') {
+                    $buckets[] = $bucket;
+                }
+            }
+        }
+
+        foreach ([env('EE_S3_BUCKET'), env('EE_S3_LEGACY_BUCKET')] as $bucket) {
+            $bucket = trim((string) $bucket);
+            if ($bucket !== '') {
+                $buckets[] = $bucket;
+            }
+        }
+
+        return array_values(array_unique($buckets));
     }
 
     private function makeParquetPath(string $csvStoredPath, string $parquetFileName): string

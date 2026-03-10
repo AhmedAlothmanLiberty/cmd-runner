@@ -9,7 +9,9 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Process\Exception\ProcessSignaledException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class EasyEngineProcessUpload implements ShouldQueue
 {
@@ -26,9 +28,22 @@ class EasyEngineProcessUpload implements ShouldQueue
     {
         $job = S3UploadJob::query()->findOrFail($this->jobId);
 
-        $bucket = $job->s3_bucket;
-        $key    = $job->s3_key;
+        $key = $job->s3_key;
         $region = env('EE_S3_REGION', 'us-east-2');
+        $awsBinary = trim((string) env('EE_AWS_BIN', env('EE_AWS', 'aws')));
+        $convertTimeout = $this->resolveTimeout('EE_PARQUET_TIMEOUT', 180);
+        $uploadTimeout = $this->resolveTimeout('EE_S3_UPLOAD_TIMEOUT', 180);
+        $targetBuckets = $this->resolveTargetBuckets($job);
+
+        if ($targetBuckets === []) {
+            $this->failJob($job, 'No S3 bucket configured. Set EE_S3_BUCKET (or EE_S3_BUCKETS).');
+            return;
+        }
+
+        $primaryBucket = $targetBuckets[0];
+        if ($job->s3_bucket !== $primaryBucket) {
+            $job->update(['s3_bucket' => $primaryBucket]);
+        }
 
         $csvFullPath = Storage::disk('local')->path($job->stored_path);
 
@@ -40,7 +55,10 @@ class EasyEngineProcessUpload implements ShouldQueue
         $job->update([
             'status' => S3UploadJob::STATUS_PROCESSING,
             'started_at' => now(),
-            'meta' => array_merge($job->meta ?? [], ['phase' => 'converting_to_parquet']),
+            'meta' => array_merge($job->meta ?? [], [
+                'phase' => 'converting_to_parquet',
+                'target_buckets' => $targetBuckets,
+            ]),
         ]);
 
         // Build parquet path
@@ -64,8 +82,21 @@ class EasyEngineProcessUpload implements ShouldQueue
         }
 
         $p = new Process([$python, $script, $csvFullPath, $parquetFullPath], base_path());
-        $p->setTimeout(180);
-        $p->run();
+        $p->setTimeout($convertTimeout);
+
+        try {
+            $p->run();
+        } catch (ProcessSignaledException $e) {
+            $signal = $e->getSignal();
+            $this->failJob(
+                $job,
+                "Parquet conversion process was killed by signal {$signal}. This is usually OOM or an external kill."
+            );
+            return;
+        } catch (Throwable $e) {
+            $this->failJob($job, 'Parquet conversion failed: ' . $e->getMessage());
+            return;
+        }
 
         if (!$p->isSuccessful()) {
             $err = trim($p->getErrorOutput() ?: $p->getOutput());
@@ -86,23 +117,42 @@ class EasyEngineProcessUpload implements ShouldQueue
             'meta' => array_merge($job->meta ?? [], [
                 'phase' => 'uploading_to_s3',
                 'parquet_output' => trim($p->getOutput()),
+                'target_buckets' => $targetBuckets,
             ]),
         ]);
 
-        // Upload parquet (not csv)
-        $aws = new Process(['aws', 's3', 'cp', $parquetFullPath, "s3://{$bucket}/{$key}"], base_path(), [
-            'AWS_DEFAULT_REGION'    => $region,
-            'AWS_ACCESS_KEY_ID'     => env('AWS_ACCESS_KEY_ID'),
-            'AWS_SECRET_ACCESS_KEY' => env('AWS_SECRET_ACCESS_KEY'),
-        ]);
+        $uploadResults = [];
 
-        $aws->setTimeout(180);
-        $aws->run();
+        foreach ($targetBuckets as $bucket) {
+            $aws = new Process([$awsBinary, 's3', 'cp', $parquetFullPath, "s3://{$bucket}/{$key}"], base_path(), [
+                'AWS_DEFAULT_REGION'    => $region,
+                'AWS_ACCESS_KEY_ID'     => env('AWS_ACCESS_KEY_ID'),
+                'AWS_SECRET_ACCESS_KEY' => env('AWS_SECRET_ACCESS_KEY'),
+            ]);
 
-        if (!$aws->isSuccessful()) {
-            $err = trim($aws->getErrorOutput() ?: $aws->getOutput());
-            $this->failJob($job, "S3 upload failed: {$err}");
-            return;
+            $aws->setTimeout($uploadTimeout);
+
+            try {
+                $aws->run();
+            } catch (ProcessSignaledException $e) {
+                $signal = $e->getSignal();
+                $this->failJob($job, "S3 upload to {$bucket} was killed by signal {$signal}.");
+                return;
+            } catch (Throwable $e) {
+                $this->failJob($job, "S3 upload to {$bucket} failed: {$e->getMessage()}");
+                return;
+            }
+
+            if (!$aws->isSuccessful()) {
+                $err = trim($aws->getErrorOutput() ?: $aws->getOutput());
+                $this->failJob($job, "S3 upload failed for {$bucket}: {$err}");
+                return;
+            }
+
+            $uploadResults[] = [
+                'bucket' => $bucket,
+                'output' => trim($aws->getOutput()),
+            ];
         }
 
         $job->update([
@@ -110,7 +160,8 @@ class EasyEngineProcessUpload implements ShouldQueue
             'finished_at' => now(),
             'meta' => array_merge($job->meta ?? [], [
                 'phase' => 'done',
-                'aws_output' => trim($aws->getOutput()),
+                'target_buckets' => $targetBuckets,
+                'uploads' => $uploadResults,
             ]),
         ]);
     }
@@ -123,5 +174,46 @@ class EasyEngineProcessUpload implements ShouldQueue
             'finished_at' => now(),
             'meta' => array_merge($job->meta ?? [], ['phase' => 'failed']),
         ]);
+    }
+
+    private function resolveTargetBuckets(S3UploadJob $job): array
+    {
+        $buckets = [];
+
+        $metaBuckets = $job->meta['target_buckets'] ?? [];
+        if (is_array($metaBuckets)) {
+            foreach ($metaBuckets as $bucket) {
+                $bucket = trim((string) $bucket);
+                if ($bucket !== '') {
+                    $buckets[] = $bucket;
+                }
+            }
+        }
+
+        $configuredBucketList = trim((string) env('EE_S3_BUCKETS', ''));
+        if ($configuredBucketList !== '') {
+            foreach (explode(',', $configuredBucketList) as $bucket) {
+                $bucket = trim($bucket);
+                if ($bucket !== '') {
+                    $buckets[] = $bucket;
+                }
+            }
+        }
+
+        foreach ([env('EE_S3_BUCKET'), env('EE_S3_LEGACY_BUCKET'), $job->s3_bucket] as $bucket) {
+            $bucket = trim((string) $bucket);
+            if ($bucket !== '') {
+                $buckets[] = $bucket;
+            }
+        }
+
+        return array_values(array_unique($buckets));
+    }
+
+    private function resolveTimeout(string $envKey, int $default): int
+    {
+        $value = (int) env($envKey, $default);
+
+        return $value > 0 ? $value : $default;
     }
 }
