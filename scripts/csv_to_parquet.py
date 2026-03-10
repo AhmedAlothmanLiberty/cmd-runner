@@ -63,16 +63,50 @@ def sniff_delimiter(path: str, encoding: str) -> str:
         return ","
 
 
+def normalize_header_name(name: str, index: int) -> str:
+    return name if name != "" else f"Unnamed: {index}"
+
+
+def make_unique_column_names(names: list[str]) -> list[str]:
+    counts = {}
+    unique_names = []
+
+    for index, name in enumerate(names):
+        base_name = normalize_header_name(name, index)
+        duplicate_index = counts.get(base_name, 0)
+
+        if duplicate_index == 0:
+            unique_name = base_name
+        else:
+            unique_name = f"{base_name}.{duplicate_index}"
+
+        counts[base_name] = duplicate_index + 1
+        unique_names.append(unique_name)
+
+    return unique_names
+
+
+def read_column_names(path: str, encoding: str, delimiter: str) -> list[str]:
+    with open(path, "r", encoding=encoding, newline="") as handle:
+        reader = std_csv.reader(handle, delimiter=delimiter)
+        header = next(reader, [])
+
+    return make_unique_column_names(header)
+
+
 def build_csv_options(encoding: str):
     on_bad_lines = os.getenv("EE_CSV_ON_BAD_LINES")
     if on_bad_lines not in {None, "error", "warn", "skip"}:
         on_bad_lines = None
 
     delimiter = sniff_delimiter(csv_path, encoding)
+    column_names = read_column_names(csv_path, encoding, delimiter)
 
     read_options = pa_csv.ReadOptions(
         use_threads=False,
         block_size=block_size,
+        skip_rows=1,
+        column_names=column_names,
         encoding=encoding,
     )
     parse_options = pa_csv.ParseOptions(
