@@ -39,7 +39,7 @@ class EasyEngineUploadController extends Controller
 
         $targetBuckets = $this->resolveTargetBuckets();
         if ($targetBuckets === []) {
-            abort(500, 'Missing EE_S3_BUCKET (or EE_S3_BUCKETS) in .env');
+            abort(500, 'Missing EE_S3_LEGACY_BUCKET in .env');
         }
         $primaryBucket = $targetBuckets[0];
 
@@ -110,21 +110,9 @@ class EasyEngineUploadController extends Controller
     {
         $buckets = [];
 
-        $configuredBucketList = trim((string) env('EE_S3_BUCKETS', ''));
-        if ($configuredBucketList !== '') {
-            foreach (explode(',', $configuredBucketList) as $bucket) {
-                $bucket = trim($bucket);
-                if ($bucket !== '') {
-                    $buckets[] = $bucket;
-                }
-            }
-        }
-
-        foreach ([env('EE_S3_BUCKET'), env('EE_S3_LEGACY_BUCKET')] as $bucket) {
-            $bucket = trim((string) $bucket);
-            if ($bucket !== '') {
-                $buckets[] = $bucket;
-            }
+        $bucket = trim((string) env('EE_S3_LEGACY_BUCKET', ''));
+        if ($bucket !== '') {
+            $buckets[] = $bucket;
         }
 
         return array_values(array_unique($buckets));

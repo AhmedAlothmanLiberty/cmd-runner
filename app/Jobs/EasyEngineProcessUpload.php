@@ -36,7 +36,7 @@ class EasyEngineProcessUpload implements ShouldQueue
         $targetBuckets = $this->resolveTargetBuckets($job);
 
         if ($targetBuckets === []) {
-            $this->failJob($job, 'No S3 bucket configured. Set EE_S3_BUCKET (or EE_S3_BUCKETS).');
+            $this->failJob($job, 'No S3 bucket configured. Set EE_S3_LEGACY_BUCKET.');
             return;
         }
 
@@ -178,36 +178,14 @@ class EasyEngineProcessUpload implements ShouldQueue
 
     private function resolveTargetBuckets(S3UploadJob $job): array
     {
-        $buckets = [];
-
-        $metaBuckets = $job->meta['target_buckets'] ?? [];
-        if (is_array($metaBuckets)) {
-            foreach ($metaBuckets as $bucket) {
-                $bucket = trim((string) $bucket);
-                if ($bucket !== '') {
-                    $buckets[] = $bucket;
-                }
-            }
+        $bucket = trim((string) env('EE_S3_LEGACY_BUCKET', ''));
+        if ($bucket !== '') {
+            return [$bucket];
         }
 
-        $configuredBucketList = trim((string) env('EE_S3_BUCKETS', ''));
-        if ($configuredBucketList !== '') {
-            foreach (explode(',', $configuredBucketList) as $bucket) {
-                $bucket = trim($bucket);
-                if ($bucket !== '') {
-                    $buckets[] = $bucket;
-                }
-            }
-        }
+        $bucket = trim((string) $job->s3_bucket);
 
-        foreach ([env('EE_S3_BUCKET'), env('EE_S3_LEGACY_BUCKET'), $job->s3_bucket] as $bucket) {
-            $bucket = trim((string) $bucket);
-            if ($bucket !== '') {
-                $buckets[] = $bucket;
-            }
-        }
-
-        return array_values(array_unique($buckets));
+        return $bucket !== '' ? [$bucket] : [];
     }
 
     private function resolveTimeout(string $envKey, int $default): int
