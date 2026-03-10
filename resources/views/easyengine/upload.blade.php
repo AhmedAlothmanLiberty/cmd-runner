@@ -27,7 +27,7 @@
 
     <div style="margin: 10px 0;">
       <label>CSV file</label><br>
-      <input type="file" name="file" required>
+      <input type="file" name="file" accept=".csv,.txt,text/csv,text/plain" required>
     </div>
 
     <button type="submit">Upload</button>

@@ -90,7 +90,7 @@ class EasyEngineProcessUpload implements ShouldQueue
             $signal = $e->getSignal();
             $this->failJob(
                 $job,
-                "Parquet conversion process was killed by signal {$signal}. This is usually OOM or an external kill; try lowering EE_PARQUET_CHUNK_ROWS."
+                "Parquet conversion process was killed by signal {$signal}. This is usually OOM or an external kill; try lowering EE_PARQUET_BLOCK_SIZE_BYTES or upload CSV only."
             );
             return;
         } catch (Throwable $e) {

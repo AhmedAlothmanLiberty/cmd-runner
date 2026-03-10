@@ -26,7 +26,7 @@ class EasyEngineUploadController extends Controller
                 'required',
                 'file',
                 'max:1048576', // 1 GB
-                'mimetypes:text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'mimes:csv,txt',
             ],
 
             'state'     => ['required', 'string', 'max:10'],
