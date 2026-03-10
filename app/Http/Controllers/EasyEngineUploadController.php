@@ -16,7 +16,9 @@ class EasyEngineUploadController extends Controller
 {
     public function form()
     {
-        return view('easyengine.upload');
+        return view('easyengine.upload', [
+            'uploadConfig' => $this->uploadConfig(),
+        ]);
     }
 
     public function upload(Request $request)
@@ -116,6 +118,72 @@ class EasyEngineUploadController extends Controller
         }
 
         return array_values(array_unique($buckets));
+    }
+
+    private function uploadConfig(): array
+    {
+        $appMaxBytes = 1024 * 1024 * 1024;
+        $phpUploadMaxBytes = $this->parseIniSize((string) ini_get('upload_max_filesize'));
+        $phpPostMaxBytes = $this->parseIniSize((string) ini_get('post_max_size'));
+        $effectiveBytes = min(
+            $this->normalizeIniLimit($phpUploadMaxBytes),
+            $this->normalizeIniLimit($phpPostMaxBytes)
+        );
+
+        return [
+            'app_max_bytes' => $appMaxBytes,
+            'app_max_label' => $this->formatBytes($appMaxBytes),
+            'php_upload_max_label' => $this->formatIniLimit($phpUploadMaxBytes),
+            'php_post_max_label' => $this->formatIniLimit($phpPostMaxBytes),
+            'effective_label' => $this->formatIniLimit($effectiveBytes),
+            'supports_target_upload' => $effectiveBytes >= $appMaxBytes,
+        ];
+    }
+
+    private function parseIniSize(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 0;
+        }
+
+        $unit = strtolower(substr($value, -1));
+        $number = (float) $value;
+
+        return match ($unit) {
+            'g' => (int) round($number * 1024 * 1024 * 1024),
+            'm' => (int) round($number * 1024 * 1024),
+            'k' => (int) round($number * 1024),
+            default => (int) round((float) $value),
+        };
+    }
+
+    private function normalizeIniLimit(int $bytes): int
+    {
+        return $bytes > 0 ? $bytes : PHP_INT_MAX;
+    }
+
+    private function formatIniLimit(int $bytes): string
+    {
+        if ($bytes <= 0 || $bytes === PHP_INT_MAX) {
+            return 'unlimited';
+        }
+
+        return $this->formatBytes($bytes);
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $size = (float) $bytes;
+        $unitIndex = 0;
+
+        while ($size >= 1024 && $unitIndex < count($units) - 1) {
+            $size /= 1024;
+            $unitIndex++;
+        }
+
+        return sprintf($size >= 10 || $unitIndex === 0 ? '%.0f %s' : '%.1f %s', $size, $units[$unitIndex]);
     }
 
     private function makeParquetPath(string $csvStoredPath, string $parquetFileName): string

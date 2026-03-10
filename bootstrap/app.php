@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withCommands([
@@ -73,5 +74,15 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (PostTooLargeException $exception, $request) {
+            if ($request->is('internal/easyengine/upload')) {
+                return redirect()
+                    ->route('ee.upload.form')
+                    ->withErrors([
+                        'file' => 'Upload rejected before Laravel received it. Increase PHP upload_max_filesize, PHP post_max_size, and the web server body-size limit above 1 GB.',
+                    ]);
+            }
+
+            return null;
+        });
     })->create();
