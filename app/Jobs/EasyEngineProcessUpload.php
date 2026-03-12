@@ -36,7 +36,7 @@ class EasyEngineProcessUpload implements ShouldQueue
         $targetBuckets = $this->resolveTargetBuckets($job);
 
         if ($targetBuckets === []) {
-            $this->failJob($job, 'No S3 bucket configured. Set EE_S3_LEGACY_BUCKET.');
+            $this->failJob($job, 'No S3 bucket configured. Set EE_S3_BUCKET.');
             return;
         }
 
@@ -178,7 +178,7 @@ class EasyEngineProcessUpload implements ShouldQueue
 
     private function resolveTargetBuckets(S3UploadJob $job): array
     {
-        $bucket = trim((string) env('EE_S3_LEGACY_BUCKET', ''));
+        $bucket = trim((string) env('EE_S3_BUCKET', ''));
         if ($bucket !== '') {
             return [$bucket];
         }

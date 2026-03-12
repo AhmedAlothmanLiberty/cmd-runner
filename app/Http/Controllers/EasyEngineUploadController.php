@@ -41,7 +41,7 @@ class EasyEngineUploadController extends Controller
 
         $targetBuckets = $this->resolveTargetBuckets();
         if ($targetBuckets === []) {
-            abort(500, 'Missing EE_S3_LEGACY_BUCKET in .env');
+            abort(500, 'Missing EE_S3_BUCKET in .env');
         }
         $primaryBucket = $targetBuckets[0];
 
@@ -112,7 +112,7 @@ class EasyEngineUploadController extends Controller
     {
         $buckets = [];
 
-        $bucket = trim((string) env('EE_S3_LEGACY_BUCKET', ''));
+        $bucket = trim((string) env('EE_S3_BUCKET', ''));
         if ($bucket !== '') {
             $buckets[] = $bucket;
         }

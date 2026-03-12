@@ -69,7 +69,7 @@ class ConvertAndUploadEasyEngineJob implements ShouldQueue
         $filename = basename($parquetRel);
         $s3Key = "{$keyDir}/{$filename}";
 
-        $bucket = env('EE_S3_LEGACY_BUCKET'); // 754724219978-lending-towers-data
+        $bucket = env('EE_S3_BUCKET');
 
         // ✅ upload (use aws-cli OR Storage disk)
         // Option A (fast): aws cli via Process
