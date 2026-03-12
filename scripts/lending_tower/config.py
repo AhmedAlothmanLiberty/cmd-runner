@@ -30,6 +30,9 @@ MYSQL_DATABASE = os.getenv("LT_MYSQL_DATABASE", "lending_tower")
 AWS_REGION = os.getenv("LT_AWS_REGION") or os.getenv("AWS_DEFAULT_REGION", "us-east-2")
 ATHENA_DATABASE = os.getenv("LT_ATHENA_DATABASE", "tu-identity-graph-crawler")
 ATHENA_RESULTS_BUCKET = os.getenv("LT_ATHENA_RESULTS_BUCKET", "s3://517693899832-athena-results/")
+AWS_ACCESS_KEY_ID = os.getenv("LT_AWS_ACCESS_KEY_ID", "")
+AWS_SECRET_ACCESS_KEY = os.getenv("LT_AWS_SECRET_ACCESS_KEY", "")
+AWS_SESSION_TOKEN = os.getenv("LT_AWS_SESSION_TOKEN", "")
 
 # Exclusion settings
 CONTACT_EXCLUSION_MONTHS = int(os.getenv("LT_CONTACT_EXCLUSION_MONTHS", "6"))
