@@ -21,6 +21,7 @@ import pymysql
 from config import (
     MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE,
     AWS_REGION, ATHENA_DATABASE, ATHENA_RESULTS_BUCKET,
+    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN,
 )
 
 ATHENA_POLL_INTERVAL = 2  # seconds
@@ -207,7 +208,13 @@ def main():
         return
 
     print("Querying TU Identity Graph via Athena...")
-    athena_client = boto3.client("athena", region_name=AWS_REGION)
+    boto3_kwargs = {"region_name": AWS_REGION}
+    if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
+        boto3_kwargs["aws_access_key_id"] = AWS_ACCESS_KEY_ID
+        boto3_kwargs["aws_secret_access_key"] = AWS_SECRET_ACCESS_KEY
+        if AWS_SESSION_TOKEN:
+            boto3_kwargs["aws_session_token"] = AWS_SESSION_TOKEN
+    athena_client = boto3.client("athena", **boto3_kwargs)
     phone_map = lookup_phones_batch(athena_client, records)
     print(f"  Matched phones for {len(phone_map)} records.")
 
