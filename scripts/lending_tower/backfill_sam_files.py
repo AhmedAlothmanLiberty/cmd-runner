@@ -2,9 +2,9 @@
 Phase 2: Backfill phone numbers and sms_send_date from Sam's 3 CSV files
 into TblMailersUnique on SQL Server.
 
-Matching key: UPPER(first word of Client) = First name,
-              UPPER(Address) = address,
-              Debt_Amount = debt load
+Matching key (primary): UPPER(Address) + UPPER(first word of Client)
+Tiebreaker: Debt_Amount = debt load
+Ambiguous matches (multiple TblMailersUnique rows for same name+address) are skipped.
 
 For the part-00000 file (one row per phone), we pivot multiple phone rows
 into phone1-phone5 per person before matching.
@@ -15,7 +15,6 @@ Usage:
 import argparse
 import csv
 import os
-import sys
 from collections import defaultdict
 from datetime import date
 
@@ -48,36 +47,39 @@ def get_mssql_connection():
 
 
 def normalize_debt(val):
-    """Normalize debt load to integer string for matching."""
+    """Normalize debt load to integer for matching."""
     if not val:
-        return "0"
+        return 0
     try:
-        return str(int(float(val)))
+        return int(float(val))
     except (ValueError, TypeError):
-        return "0"
+        return 0
 
 
 def parse_multi_phone_csv(filepath):
     """Parse CSV with phone1-phone5 columns. Returns list of dicts."""
-    records = []
+    grouped = defaultdict(list)
     with open(filepath, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             first_name = (row.get("First name", "") or "").strip().upper()
             address = (row.get("address", "") or "").strip().upper()
             debt = normalize_debt(row.get("debt load", ""))
-            phones = []
+            key = (first_name, address, debt)
             for i in range(1, 6):
                 p = (row.get(f"phone{i}", "") or "").strip()
-                if p:
-                    phones.append(p)
-            if first_name and address:
-                records.append({
-                    "first_name": first_name,
-                    "address": address,
-                    "debt": debt,
-                    "phones": phones,
-                })
+                if p and p not in grouped[key] and len(grouped[key]) < 5:
+                    grouped[key].append(p)
+
+    records = []
+    for (first_name, address, debt), phones in grouped.items():
+        if first_name and address:
+            records.append({
+                "first_name": first_name,
+                "address": address,
+                "debt": debt,
+                "phones": phones,
+            })
     return records
 
 
@@ -107,52 +109,146 @@ def parse_single_phone_csv(filepath):
     return records
 
 
-def update_batch(cursor, conn, batch, send_date, dry_run):
-    """Update TblMailersUnique for a batch of records."""
-    updated = 0
+def recreate_stage_table(cursor, label):
+    safe_label = label.replace("-", "_").replace(".", "_")
+    table_name = f"##sam_backfill_{safe_label}"
+    cursor.execute(f"IF OBJECT_ID('tempdb..{table_name}') IS NOT NULL DROP TABLE {table_name}")
+    cursor.execute(f"""
+        CREATE TABLE {table_name} (
+            first_name VARCHAR(255) NOT NULL,
+            address VARCHAR(500) NOT NULL,
+            debt_amount INT NOT NULL,
+            phone1 VARCHAR(32) NULL,
+            phone2 VARCHAR(32) NULL,
+            phone3 VARCHAR(32) NULL,
+            phone4 VARCHAR(32) NULL,
+            phone5 VARCHAR(32) NULL
+        )
+    """)
+    return table_name
+
+
+def insert_stage_batch(cursor, table_name, batch):
+    rows = []
     for rec in batch:
         phones = (rec["phones"] + [None] * 5)[:5]
-
-        if dry_run:
-            updated += 1
-            continue
-
-        cursor.execute("""
-            UPDATE dbo.TblMailersUnique
-            SET phone1 = %s, phone2 = %s, phone3 = %s, phone4 = %s, phone5 = %s,
-                sms_send_date = %s
-            WHERE UPPER(LEFT(Client, CASE
-                    WHEN CHARINDEX(' ', Client) > 0 THEN CHARINDEX(' ', Client) - 1
-                    ELSE LEN(Client) END)) = %s
-              AND UPPER(Address) = %s
-              AND CAST(Debt_Amount AS INT) = %s
-              AND phone1 IS NULL
-        """, (
-            phones[0], phones[1], phones[2], phones[3], phones[4],
-            send_date,
+        rows.append((
             rec["first_name"],
             rec["address"],
-            int(rec["debt"]) if rec["debt"] != "0" else 0,
+            rec["debt"],
+            phones[0],
+            phones[1],
+            phones[2],
+            phones[3],
+            phones[4],
         ))
-        updated += cursor.rowcount
+    cursor.executemany(
+        f"""
+        INSERT INTO {table_name} (
+            first_name, address, debt_amount, phone1, phone2, phone3, phone4, phone5
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        rows,
+    )
 
-    if not dry_run:
-        conn.commit()
-    return updated
+
+def create_stage_index(cursor, table_name):
+    cursor.execute(f"""
+        CREATE INDEX IX_{table_name.replace('#', '').replace('.', '_')}_match
+        ON {table_name} (address, first_name)
+    """)
+
+
+def run_stage_update(cursor, table_name, send_date, dry_run):
+    # Primary match: address + first name
+    # For ambiguous matches (>1 TblMailersUnique row per name+address),
+    # use debt as tiebreaker. If still ambiguous, skip.
+    match_cte = f"""
+        WITH matched AS (
+            SELECT
+                t.PK,
+                s.phone1, s.phone2, s.phone3, s.phone4, s.phone5,
+                ROW_NUMBER() OVER (
+                    PARTITION BY s.first_name, s.address
+                    ORDER BY ABS(CAST(t.Debt_Amount AS INT) - s.debt_amount) ASC
+                ) AS rn,
+                COUNT(*) OVER (
+                    PARTITION BY s.first_name, s.address
+                ) AS match_count
+            FROM dbo.TblMailersUnique t
+            JOIN {table_name} s
+              ON UPPER(t.Address) = s.address
+             AND UPPER(LEFT(t.Client, CASE
+                    WHEN CHARINDEX(' ', t.Client) > 0 THEN CHARINDEX(' ', t.Client) - 1
+                    ELSE LEN(t.Client) END)) = s.first_name
+            WHERE t.phone1 IS NULL
+        )
+    """
+
+    if dry_run:
+        cursor.execute(match_cte + """
+            SELECT COUNT(*) FROM matched WHERE rn = 1
+        """)
+        total = cursor.fetchone()[0]
+        # Count skipped ambiguous
+        cursor.execute(match_cte + """
+            SELECT COUNT(DISTINCT first_name + '|' + address)
+            FROM (SELECT s.first_name, s.address, COUNT(*) AS cnt
+                  FROM dbo.TblMailersUnique t
+                  JOIN """ + table_name + """ s
+                    ON UPPER(t.Address) = s.address
+                   AND UPPER(LEFT(t.Client, CASE
+                          WHEN CHARINDEX(' ', t.Client) > 0 THEN CHARINDEX(' ', t.Client) - 1
+                          ELSE LEN(t.Client) END)) = s.first_name
+                  WHERE t.phone1 IS NULL
+                  GROUP BY s.first_name, s.address
+                  HAVING COUNT(*) > 1) ambig
+        """)
+        ambiguous = cursor.fetchone()[0]
+        print(f"  [DRY RUN] {total} would match, {ambiguous} ambiguous groups resolved by debt tiebreaker")
+        return total
+
+    cursor.execute(match_cte + """
+        UPDATE t2
+        SET t2.phone1 = m.phone1,
+            t2.phone2 = m.phone2,
+            t2.phone3 = m.phone3,
+            t2.phone4 = m.phone4,
+            t2.phone5 = m.phone5,
+            t2.sms_send_date = %s
+        FROM dbo.TblMailersUnique t2
+        JOIN matched m ON t2.PK = m.PK
+        WHERE m.rn = 1
+    """, (send_date,))
+    return cursor.rowcount
 
 
 def process_file(conn, records, label, send_date, dry_run):
     """Process all records from a parsed file."""
     cursor = conn.cursor()
-    total_updated = 0
+    table_name = recreate_stage_table(cursor, label)
+    conn.commit()
+    print(f"  [{label}] staging table ready: {table_name}")
 
     for i in range(0, len(records), BATCH_SIZE):
         batch = records[i:i + BATCH_SIZE]
-        updated = update_batch(cursor, conn, batch, send_date, dry_run)
-        total_updated += updated
+        insert_stage_batch(cursor, table_name, batch)
+        conn.commit()
         processed = min(i + BATCH_SIZE, len(records))
-        print(f"  [{label}] {processed}/{len(records)} processed, {total_updated} matched")
+        print(f"  [{label}] {processed}/{len(records)} staged")
 
+    print(f"  [{label}] creating stage index...")
+    create_stage_index(cursor, table_name)
+    conn.commit()
+
+    print(f"  [{label}] running bulk update...")
+    total_updated = run_stage_update(cursor, table_name, send_date, dry_run)
+    if not dry_run:
+        conn.commit()
+    print(f"  [{label}] bulk update complete: {total_updated} matched")
+
+    cursor.execute(f"DROP TABLE {table_name}")
+    conn.commit()
     cursor.close()
     return total_updated
 
