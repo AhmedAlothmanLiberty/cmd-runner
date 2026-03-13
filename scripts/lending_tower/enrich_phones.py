@@ -65,7 +65,6 @@ def get_mysql_connection():
 
 
 def ensure_column(mysql_conn):
-    """Add enrich_attempted_at column if it doesn't exist."""
     cur = mysql_conn.cursor()
     cur.execute("""
         SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -75,6 +74,15 @@ def ensure_column(mysql_conn):
     if cur.fetchone()[0] == 0:
         print("  Adding enrich_attempted_at column...")
         cur.execute("ALTER TABLE mailer_data ADD COLUMN enrich_attempted_at DATETIME NULL DEFAULT NULL")
+        mysql_conn.commit()
+    cur.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'mailer_data'
+          AND COLUMN_NAME = 'phone6'
+    """, (MYSQL_DATABASE,))
+    if cur.fetchone()[0] == 0:
+        print("  Adding phone6 column...")
+        cur.execute("ALTER TABLE mailer_data ADD COLUMN phone6 VARCHAR(32) NULL DEFAULT NULL")
         mysql_conn.commit()
     cur.close()
 
@@ -217,14 +225,13 @@ def run_enrichment_query(athena_client):
         JOIN "{ATHENA_DATABASE}".phone p
             ON n.extern_tuid = p.extern_tuid
         WHERE p.phone_sequence_number <> ''
-          AND TRY_CAST(p.phone_sequence_number AS INTEGER) <= 5
+          AND TRY_CAST(p.phone_sequence_number AS INTEGER) <= 6
         ORDER BY m.mailer_id, TRY_CAST(p.phone_sequence_number AS INTEGER)
     """
     return run_athena(athena_client, query)
 
 
 def paginate_results(athena_client, query_id):
-    """Paginate Athena results into a dict {mailer_id: [phone1..phone5]}."""
     phone_map = {}
     paginator = athena_client.get_paginator("get_query_results")
     first_page = True
@@ -245,12 +252,13 @@ def paginate_results(athena_client, query_id):
                 continue
             if mid not in phone_map:
                 phone_map[mid] = []
-            if len(phone_map[mid]) < 5:
+            if phone in phone_map[mid]:
+                continue
+            if len(phone_map[mid]) < 6:
                 phone_map[mid].append(phone)
 
-    # Pad to 5
     for mid in phone_map:
-        phone_map[mid] = (phone_map[mid] + [None] * 5)[:5]
+        phone_map[mid] = (phone_map[mid] + [None] * 6)[:6]
 
     return phone_map
 
@@ -266,7 +274,7 @@ def update_phones(mysql_conn, phone_map):
         for mailer_id, phones in batch:
             cur.execute("""
                 UPDATE mailer_data
-                SET phone1=%s, phone2=%s, phone3=%s, phone4=%s, phone5=%s
+                SET phone1=%s, phone2=%s, phone3=%s, phone4=%s, phone5=%s, phone6=%s
                 WHERE id=%s
             """, (*phones, mailer_id))
         mysql_conn.commit()

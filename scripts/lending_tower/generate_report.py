@@ -110,29 +110,35 @@ def fetch_candidates(mysql_conn, count, excluded_ids):
         query = f"""
             SELECT id, original_pk, drop_name, client, external_id,
                    city, state, zip, debt_amount, address,
-                   phone1, phone2, phone3, phone4, phone5,
+                   phone1, phone2, phone3, phone4, phone5, phone6,
                    mailer_date, sms_date
             FROM mailer_data
             WHERE phone1 IS NOT NULL
               AND phone1 != ''
+              AND debt_amount > 0
               AND external_id NOT IN ({placeholders})
             ORDER BY mailer_date DESC, sms_date ASC
-            LIMIT %s
         """
-        params = list(excluded_ids) + [count]
+        params = list(excluded_ids)
+        if count > 0:
+            query += "\n LIMIT %s"
+            params.append(count)
     else:
         query = """
             SELECT id, original_pk, drop_name, client, external_id,
                    city, state, zip, debt_amount, address,
-                   phone1, phone2, phone3, phone4, phone5,
+                   phone1, phone2, phone3, phone4, phone5, phone6,
                    mailer_date, sms_date
             FROM mailer_data
             WHERE phone1 IS NOT NULL
               AND phone1 != ''
+              AND debt_amount > 0
             ORDER BY mailer_date DESC, sms_date ASC
-            LIMIT %s
         """
-        params = [count]
+        params = []
+        if count > 0:
+            query += "\n LIMIT %s"
+            params.append(count)
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
@@ -172,24 +178,35 @@ def format_debt_load(value):
     return f"{numeric:.2f}".rstrip("0").rstrip(".")
 
 
-def write_report(rows, output_path):
-    """Write report rows to CSV with 4 columns: First name, address, debt load, cell phone."""
+def iter_report_rows(rows, send_date):
+    for row in rows:
+        seen = set()
+        for key in ("phone1", "phone2", "phone3", "phone4", "phone5", "phone6"):
+            phone = (row.get(key, "") or "").strip()
+            if not phone or phone in seen:
+                continue
+            seen.add(phone)
+            yield {
+                "First name": parse_first_name(row.get("client", "")),
+                "address": (row.get("address", "") or "").upper(),
+                "debt load": format_debt_load(row.get("debt_amount", "")),
+                "cell phone": phone,
+                "send date": send_date,
+            }
+
+
+def write_report(rows, output_path, send_date):
     if not rows:
         print("No records to write.")
         return
 
-    fieldnames = ["First name", "address", "debt load", "cell phone"]
+    fieldnames = ["First name", "address", "debt load", "cell phone", "send date"]
 
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        for row in rows:
-            writer.writerow({
-                "First name": parse_first_name(row.get("client", "")),
-                "address": (row.get("address", "") or "").upper(),
-                "debt load": format_debt_load(row.get("debt_amount", "")),
-                "cell phone": row.get("phone1", ""),
-            })
+        for row in iter_report_rows(rows, send_date):
+            writer.writerow(row)
 
     print(f"Report written to: {output_path}")
 
@@ -205,6 +222,7 @@ def main():
     args = parser.parse_args()
 
     output_path = args.output or f"sms_report_{date.today().isoformat()}.csv"
+    send_date = date.today().isoformat()
 
     print("Step 1: Fetching exclusion lists from SQL Server...")
     mssql_conn = get_mssql_connection()
@@ -223,7 +241,7 @@ def main():
         return
 
     print(f"\nStep 3: Writing report to {output_path}...")
-    write_report(rows, output_path)
+    write_report(rows, output_path, send_date)
 
     if args.dry_run:
         print("\n[DRY RUN] sms_date NOT updated.")
