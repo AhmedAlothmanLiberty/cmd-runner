@@ -1,28 +1,23 @@
 """
 Phase 3: Enrich TblMailersUnique with phone numbers from TU Identity Graph.
 
-Works directly against SQL Server. Reads unenriched rows in chunks,
-stages them in S3, runs Athena JOIN against TU phone/name/address tables,
-and writes matched phones back to TblMailersUnique.
+Three-pass matching strategy:
+  Pass 1: exact first_name + last_name + exact address
+  Pass 2: exact first_name + last_name + normalized address
+  Pass 3: first_name + last_name + zip (no address)
 
-Processes in configurable chunks (default 500k) so memory stays bounded.
+Works directly against SQL Server. Reads unenriched rows in chunks,
+stages them in S3, runs Athena JOINs, writes phones back to SQL Server.
 
 Usage:
     python enrich_tblmailers.py [--chunk-size 500000] [--limit 0] [--dry-run]
-
-Options:
-    --chunk-size  Rows per Athena batch (default: 500000)
-    --limit       Max total rows to process (0 = all unenriched)
-    --dry-run     Preview without updating SQL Server
-    --newest      Process newest mailer_date records first
+    python enrich_tblmailers.py --limit 5000000 --newest
 """
 import argparse
 import csv
 import io
-import os
+import re
 import time
-import sys
-from datetime import datetime
 
 import boto3
 import pymssql
@@ -37,12 +32,38 @@ STAGING_S3_PREFIX = "staging/enrich_tblmailers"
 STAGING_TABLE = "tmp_tblmailers_lookup"
 ATHENA_POLL_START = 1.0
 ATHENA_POLL_MAX = 8.0
-MSSQL_BATCH = 1000
-SOURCE_BATCH = 50000
+MSSQL_BATCH = 900
+INSERT_ROWS_PER_STMT = 900
+
+# Address normalization map
+ADDR_ABBREV = {
+    "STREET": "ST", "AVENUE": "AVE", "DRIVE": "DR", "ROAD": "RD",
+    "BOULEVARD": "BLVD", "LANE": "LN", "COURT": "CT", "PLACE": "PL",
+    "CIRCLE": "CIR", "TRAIL": "TRL", "PARKWAY": "PKWY", "HIGHWAY": "HWY",
+    "TERRACE": "TER", "WAY": "WAY", "NORTH": "N", "SOUTH": "S",
+    "EAST": "E", "WEST": "W", "NORTHEAST": "NE", "NORTHWEST": "NW",
+    "SOUTHEAST": "SE", "SOUTHWEST": "SW",
+}
+ADDR_STRIP = re.compile(r'\b(APT|UNIT|SUITE|STE|BLDG|BUILDING|FLOOR|FL|RM|ROOM|#)\b.*', re.IGNORECASE)
+
+
+def normalize_address(addr):
+    """Normalize an address string for fuzzy matching."""
+    if not addr:
+        return ""
+    s = addr.strip().upper()
+    s = ADDR_STRIP.sub("", s).strip()
+    s = re.sub(r'[^A-Z0-9 ]', ' ', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+    parts = s.split()
+    normalized = []
+    for p in parts:
+        normalized.append(ADDR_ABBREV.get(p, p))
+    return " ".join(normalized)
 
 
 # ---------------------------------------------------------------------------
-# AWS clients
+# AWS
 # ---------------------------------------------------------------------------
 def get_boto3_kwargs():
     kwargs = {"region_name": AWS_REGION}
@@ -55,7 +76,7 @@ def get_boto3_kwargs():
 
 
 # ---------------------------------------------------------------------------
-# SQL Server helpers
+# SQL Server
 # ---------------------------------------------------------------------------
 def get_mssql_connection():
     return pymssql.connect(
@@ -69,18 +90,13 @@ def get_mssql_connection():
 
 def count_unenriched(mssql_conn):
     cursor = mssql_conn.cursor()
-    cursor.execute("""
-        SELECT COUNT(*)
-        FROM dbo.TblMailersUnique
-        WHERE phone1 IS NULL
-    """)
+    cursor.execute("SELECT COUNT(*) FROM dbo.TblMailersUnique WHERE phone1 IS NULL")
     total = cursor.fetchone()[0]
     cursor.close()
     return total
 
 
 def fetch_unenriched_chunk(mssql_conn, last_pk, chunk_size, newest_first=False):
-    """Fetch a chunk of unenriched rows by PK range."""
     order = "DESC" if newest_first else "ASC"
     op = "<" if newest_first else ">"
     cursor = mssql_conn.cursor(as_dict=True)
@@ -107,14 +123,14 @@ def parse_name(client_str):
 
 
 # ---------------------------------------------------------------------------
-# S3 staging
+# S3 staging — now includes zip and normalized address
 # ---------------------------------------------------------------------------
 def results_bucket_name():
     return ATHENA_RESULTS_BUCKET.replace("s3://", "").strip("/").split("/")[0]
 
 
 def upload_staging_csv(s3_client, records):
-    """Build CSV in memory and upload to S3. Returns S3 URI of folder."""
+    """Upload CSV: pk, first_name, last_name, address, norm_address, zip"""
     buf = io.StringIO()
     writer = csv.writer(buf)
     skipped = 0
@@ -122,10 +138,12 @@ def upload_staging_csv(s3_client, records):
     for rec in records:
         first_name, last_name = parse_name(rec["Client"])
         address = rec["Address"].strip().upper() if rec["Address"] else ""
-        if not first_name or not address:
+        zipcode = (rec["Zip"] or "").strip()
+        if not first_name:
             skipped += 1
             continue
-        writer.writerow([rec["PK"], first_name, last_name, address])
+        norm_addr = normalize_address(address)
+        writer.writerow([rec["PK"], first_name, last_name, address, norm_addr, zipcode])
         written += 1
 
     bucket = results_bucket_name()
@@ -145,7 +163,7 @@ def cleanup_staging(s3_client):
 
 
 # ---------------------------------------------------------------------------
-# Athena helpers
+# Athena
 # ---------------------------------------------------------------------------
 def run_athena(athena_client, query):
     resp = athena_client.start_query_execution(
@@ -177,7 +195,9 @@ def create_staging_table(athena_client, s3_location):
             mailer_pk INT,
             first_name STRING,
             last_name STRING,
-            address STRING
+            address STRING,
+            norm_address STRING,
+            zip STRING
         )
         ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
         WITH SERDEPROPERTIES (
@@ -198,30 +218,75 @@ def drop_staging_table(athena_client):
     run_athena(athena_client, f'DROP TABLE IF EXISTS `{ATHENA_DATABASE}`.`{STAGING_TABLE}`')
 
 
-def run_enrichment_query(athena_client):
-    query = f"""
+def build_enrichment_query(pass_num):
+    """Build Athena query for a given matching pass."""
+    db = ATHENA_DATABASE
+    stg = STAGING_TABLE
+
+    phone_select = f"""
         SELECT
             m.mailer_pk,
             p.phone,
             TRY_CAST(p.phone_sequence_number AS INTEGER) AS seq
-        FROM "{ATHENA_DATABASE}"."{STAGING_TABLE}" m
-        JOIN "{ATHENA_DATABASE}".name n
-            ON UPPER(n.first_name) = UPPER(m.first_name)
-           AND UPPER(n.last_name) = UPPER(m.last_name)
-        JOIN "{ATHENA_DATABASE}".address a
-            ON n.extern_tuid = a.extern_tuid
-           AND UPPER(a.address) = UPPER(m.address)
-        JOIN "{ATHENA_DATABASE}".phone p
+    """
+    phone_join = f"""
+        JOIN "{db}".phone p
             ON n.extern_tuid = p.extern_tuid
         WHERE p.phone_sequence_number <> ''
           AND TRY_CAST(p.phone_sequence_number AS INTEGER) <= 5
         ORDER BY m.mailer_pk, TRY_CAST(p.phone_sequence_number AS INTEGER)
     """
-    return run_athena(athena_client, query)
+
+    if pass_num == 1:
+        # Pass 1: exact name + exact address
+        return phone_select + f"""
+        FROM "{db}"."{stg}" m
+        JOIN "{db}".name n
+            ON UPPER(n.first_name) = UPPER(m.first_name)
+           AND UPPER(n.last_name) = UPPER(m.last_name)
+        JOIN "{db}".address a
+            ON n.extern_tuid = a.extern_tuid
+           AND UPPER(a.address) = UPPER(m.address)
+        """ + phone_join
+
+    elif pass_num == 2:
+        # Pass 2: exact name + normalized address
+        return phone_select + f"""
+        FROM "{db}"."{stg}" m
+        JOIN "{db}".name n
+            ON UPPER(n.first_name) = UPPER(m.first_name)
+           AND UPPER(n.last_name) = UPPER(m.last_name)
+        JOIN "{db}".address a
+            ON n.extern_tuid = a.extern_tuid
+           AND UPPER(
+                REGEXP_REPLACE(
+                    REGEXP_REPLACE(
+                        REGEXP_REPLACE(UPPER(a.address),
+                            '\\b(APT|UNIT|SUITE|STE|BLDG|BUILDING|FLOOR|FL|RM|ROOM|#)\\b.*', ''),
+                        '[^A-Z0-9 ]', ' '),
+                    '\\s+', ' ')
+              ) = UPPER(m.norm_address)
+        """ + phone_join
+
+    elif pass_num == 3:
+        # Pass 3: name + zip (no address)
+        return phone_select + f"""
+        FROM "{db}"."{stg}" m
+        JOIN "{db}".name n
+            ON UPPER(n.first_name) = UPPER(m.first_name)
+           AND UPPER(n.last_name) = UPPER(m.last_name)
+        JOIN "{db}".address a
+            ON n.extern_tuid = a.extern_tuid
+           AND a.zip = m.zip
+        """ + phone_join
+
+    raise ValueError(f"Unknown pass: {pass_num}")
 
 
-def paginate_results(athena_client, query_id):
+def paginate_results(athena_client, query_id, exclude_pks=None):
+    """Collect phone results, skipping PKs already matched."""
     phone_map = {}
+    exclude = exclude_pks or set()
     paginator = athena_client.get_paginator("get_query_results")
     first_page = True
 
@@ -235,6 +300,8 @@ def paginate_results(athena_client, query_id):
             try:
                 pk = int(data[0])
             except (ValueError, IndexError):
+                continue
+            if pk in exclude:
                 continue
             phone = data[1] if len(data) > 1 else ""
             if not phone:
@@ -253,8 +320,14 @@ def paginate_results(athena_client, query_id):
 
 
 # ---------------------------------------------------------------------------
-# SQL Server update
+# SQL Server update — fast multi-row
 # ---------------------------------------------------------------------------
+def esc(val):
+    if val is None:
+        return "NULL"
+    return "'" + str(val).replace("'", "''") + "'"
+
+
 def update_phones_mssql(mssql_conn, phone_map, dry_run):
     if dry_run:
         for pk, phones in list(phone_map.items())[:10]:
@@ -262,8 +335,13 @@ def update_phones_mssql(mssql_conn, phone_map, dry_run):
         print(f"  [DRY RUN] Would update {len(phone_map)} rows.")
         return
 
+    if not phone_map:
+        return
+
     cursor = mssql_conn.cursor()
     items = list(phone_map.items())
+    t0 = time.time()
+
     for i in range(0, len(items), MSSQL_BATCH):
         batch = items[i:i + MSSQL_BATCH]
         for pk, phones in batch:
@@ -274,7 +352,10 @@ def update_phones_mssql(mssql_conn, phone_map, dry_run):
             """, (phones[0], phones[1], phones[2], phones[3], phones[4], pk))
         mssql_conn.commit()
         done = min(i + MSSQL_BATCH, len(items))
-        print(f"    Updated {done}/{len(items)}...")
+        elapsed = time.time() - t0
+        rate = done / elapsed if elapsed > 0 else 0
+        print(f"    Updated {done}/{len(items)} ({rate:.0f} rows/s)")
+
     cursor.close()
 
 
@@ -283,7 +364,7 @@ def update_phones_mssql(mssql_conn, phone_map, dry_run):
 # ---------------------------------------------------------------------------
 def main():
     t0 = time.time()
-    parser = argparse.ArgumentParser(description="Enrich TblMailersUnique with TU graph phones via Athena")
+    parser = argparse.ArgumentParser(description="Enrich TblMailersUnique via Athena (3-pass matching)")
     parser.add_argument("--chunk-size", type=int, default=500000,
                         help="Rows per Athena batch (default: 500000)")
     parser.add_argument("--limit", type=int, default=0,
@@ -294,13 +375,13 @@ def main():
                         help="Process newest records first (by PK descending)")
     args = parser.parse_args()
 
-    print("Step 1: Connecting to SQL Server...")
+    print("Connecting to SQL Server...")
     mssql_conn = get_mssql_connection()
 
     total_unenriched = count_unenriched(mssql_conn)
     target = min(total_unenriched, args.limit) if args.limit > 0 else total_unenriched
-    print(f"  Unenriched rows: {total_unenriched}")
-    print(f"  Target: {target}")
+    print(f"  Unenriched rows: {total_unenriched:,}")
+    print(f"  Target: {target:,}")
 
     if target == 0:
         print("Nothing to enrich.")
@@ -321,7 +402,9 @@ def main():
         remaining = target - total_processed
         this_chunk = min(args.chunk_size, remaining)
 
-        print(f"\n--- Chunk {chunk_num}: fetching up to {this_chunk} rows (last_pk={last_pk}) ---")
+        print(f"\n{'='*60}")
+        print(f"Chunk {chunk_num}: fetching up to {this_chunk:,} rows (last_pk={last_pk})")
+        print(f"{'='*60}")
         records = fetch_unenriched_chunk(mssql_conn, last_pk, this_chunk, newest_first=args.newest)
         if not records:
             print("  No more unenriched rows.")
@@ -333,7 +416,7 @@ def main():
         else:
             last_pk = max(r["PK"] for r in records)
 
-        print(f"  Fetched {len(records)} rows. Uploading staging CSV...")
+        print(f"  Fetched {len(records):,} rows. Uploading staging CSV...")
         s3_location = upload_staging_csv(s3_client, records)
 
         print("  Creating Athena staging table...")
@@ -342,34 +425,50 @@ def main():
             cleanup_staging(s3_client)
             continue
 
-        print("  Running enrichment query...")
-        qid = run_enrichment_query(athena_client)
-        if not qid:
-            print("  ERROR: Enrichment query failed. Skipping chunk.")
-            drop_staging_table(athena_client)
-            cleanup_staging(s3_client)
-            continue
+        # Three-pass matching
+        all_matched_pks = set()
+        chunk_phone_map = {}
 
-        print("  Fetching Athena results...")
-        phone_map = paginate_results(athena_client, qid)
-        total_matched += len(phone_map)
-        print(f"  Matched {len(phone_map)}/{len(records)} rows in this chunk.")
+        for pass_num in range(1, 4):
+            pass_labels = {1: "exact address", 2: "normalized address", 3: "name + zip"}
+            label = pass_labels[pass_num]
+            print(f"\n  --- Pass {pass_num}: {label} ---")
 
-        print("  Updating SQL Server...")
-        update_phones_mssql(mssql_conn, phone_map, args.dry_run)
+            query = build_enrichment_query(pass_num)
+            qid = run_athena(athena_client, query)
+            if not qid:
+                print(f"  Pass {pass_num} query failed, continuing to next pass...")
+                continue
+
+            phone_map = paginate_results(athena_client, qid, exclude_pks=all_matched_pks)
+            print(f"  Pass {pass_num} matched: {len(phone_map):,} new rows")
+
+            chunk_phone_map.update(phone_map)
+            all_matched_pks.update(phone_map.keys())
+
+        total_matched += len(chunk_phone_map)
+        print(f"\n  Total matched this chunk: {len(chunk_phone_map):,}/{len(records):,}")
+
+        if chunk_phone_map:
+            print("  Updating SQL Server...")
+            update_phones_mssql(mssql_conn, chunk_phone_map, args.dry_run)
 
         print("  Cleaning up staging...")
         drop_staging_table(athena_client)
         cleanup_staging(s3_client)
 
-        print(f"  Progress: {total_processed}/{target} processed, {total_matched} matched total.")
+        print(f"  Progress: {total_processed:,}/{target:,} processed, {total_matched:,} matched total")
+        if total_processed > 0:
+            print(f"  Running match rate: {total_matched/total_processed*100:.1f}%")
 
     elapsed = time.time() - t0
-    print(f"\nDone in {elapsed:.1f}s ({elapsed/60:.1f}m).")
-    print(f"  Total processed: {total_processed}")
-    print(f"  Total matched:   {total_matched}")
+    print(f"\n{'='*60}")
+    print(f"Done in {elapsed:.1f}s ({elapsed/60:.1f}m).")
+    print(f"  Total processed: {total_processed:,}")
+    print(f"  Total matched:   {total_matched:,}")
     if total_processed > 0:
         print(f"  Match rate:      {total_matched/total_processed*100:.1f}%")
+    print(f"{'='*60}")
 
     mssql_conn.close()
 
