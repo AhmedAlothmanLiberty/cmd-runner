@@ -136,6 +136,8 @@ def main():
                         help="Mailer send date (YYYY-MM-DD), default: today")
     parser.add_argument("--drop-name", type=str, default=None,
                         help="Only import records from this drop name (e.g., LTIWCO2905A)")
+    parser.add_argument("--max-rows", type=int, default=0,
+                        help="Maximum number of source rows to import for a sample run (0 = all)")
     args = parser.parse_args()
 
     try:
@@ -153,7 +155,10 @@ def main():
     filter_msg = f" (drop: {args.drop_name})" if args.drop_name else " (all records)"
     print(f"Counting mailers{filter_msg}...")
     total_source_rows = count_mailers(mssql_conn, args.drop_name)
+    target_rows = min(total_source_rows, args.max_rows) if args.max_rows > 0 else total_source_rows
     print(f"Source rows: {total_source_rows}")
+    if args.max_rows > 0:
+        print(f"Sample limit: {target_rows}")
 
     print(f"Inserting into mailer_data (mailer_date={args.mailer_date})...")
     total_read = 0
@@ -162,7 +167,18 @@ def main():
     last_pk = 0
 
     while True:
-        rows = fetch_mailers(mssql_conn, last_pk=last_pk, drop_name=args.drop_name)
+        if args.max_rows > 0 and total_read >= args.max_rows:
+            break
+
+        remaining = (args.max_rows - total_read) if args.max_rows > 0 else SOURCE_BATCH_SIZE
+        batch_size = min(SOURCE_BATCH_SIZE, remaining) if args.max_rows > 0 else SOURCE_BATCH_SIZE
+
+        rows = fetch_mailers(
+            mssql_conn,
+            last_pk=last_pk,
+            drop_name=args.drop_name,
+            batch_size=batch_size,
+        )
         if not rows:
             break
 
@@ -173,7 +189,7 @@ def main():
         last_pk = rows[-1]["PK"]
 
         print(
-            f"Processed {total_read}/{total_source_rows} rows "
+            f"Processed {total_read}/{target_rows} rows "
             f"(last PK: {last_pk}, inserted: {total_inserted}, skipped: {total_skipped})"
         )
 
