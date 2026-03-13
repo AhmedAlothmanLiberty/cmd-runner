@@ -356,6 +356,62 @@ def esc(val):
     return "'" + str(val).replace("'", "''") + "'"
 
 
+def recreate_update_stage_table(cursor):
+    table_name = f"##enrich_phone_update_{int(time.time())}"
+    cursor.execute(f"IF OBJECT_ID('tempdb..{table_name}') IS NOT NULL DROP TABLE {table_name}")
+    cursor.execute(f"""
+        CREATE TABLE {table_name} (
+            PK INT NOT NULL,
+            phone1 VARCHAR(32) NULL,
+            phone2 VARCHAR(32) NULL,
+            phone3 VARCHAR(32) NULL,
+            phone4 VARCHAR(32) NULL,
+            phone5 VARCHAR(32) NULL
+        )
+    """)
+    return table_name
+
+
+def stage_phone_updates(cursor, mssql_conn, table_name, items):
+    staged = 0
+    t0 = time.time()
+    for i in range(0, len(items), INSERT_ROWS_PER_STMT):
+        batch = items[i:i + INSERT_ROWS_PER_STMT]
+        values_parts = []
+        for pk, phones in batch:
+            values_parts.append(
+                f"({int(pk)},{esc(phones[0])},{esc(phones[1])},{esc(phones[2])},{esc(phones[3])},{esc(phones[4])})"
+            )
+        sql = (
+            f"INSERT INTO {table_name} (PK, phone1, phone2, phone3, phone4, phone5) VALUES "
+            + ",".join(values_parts)
+        )
+        cursor.execute(sql)
+        staged += len(batch)
+        if staged % 50000 < INSERT_ROWS_PER_STMT:
+            mssql_conn.commit()
+            elapsed = time.time() - t0
+            rate = staged / elapsed if elapsed > 0 else 0
+            print(f"    Staged {staged}/{len(items)} ({rate:.0f} rows/s)")
+    mssql_conn.commit()
+
+
+def run_phone_update_join(cursor, table_name):
+    cursor.execute(f"""
+        UPDATE t
+        SET t.phone1 = s.phone1,
+            t.phone2 = s.phone2,
+            t.phone3 = s.phone3,
+            t.phone4 = s.phone4,
+            t.phone5 = s.phone5
+        FROM dbo.TblMailersUnique t
+        JOIN {table_name} s
+          ON t.PK = s.PK
+        WHERE t.phone1 IS NULL
+    """)
+    return cursor.rowcount
+
+
 def update_phones_mssql(mssql_conn, phone_map, dry_run):
     if dry_run:
         for pk, phones in list(phone_map.items())[:10]:
@@ -369,21 +425,19 @@ def update_phones_mssql(mssql_conn, phone_map, dry_run):
     cursor = mssql_conn.cursor()
     items = list(phone_map.items())
     t0 = time.time()
-
-    for i in range(0, len(items), MSSQL_BATCH):
-        batch = items[i:i + MSSQL_BATCH]
-        for pk, phones in batch:
-            cursor.execute("""
-                UPDATE dbo.TblMailersUnique
-                SET phone1=%s, phone2=%s, phone3=%s, phone4=%s, phone5=%s
-                WHERE PK=%s
-            """, (phones[0], phones[1], phones[2], phones[3], phones[4], pk))
-        mssql_conn.commit()
-        done = min(i + MSSQL_BATCH, len(items))
-        elapsed = time.time() - t0
-        rate = done / elapsed if elapsed > 0 else 0
-        print(f"    Updated {done}/{len(items)} ({rate:.0f} rows/s)")
-
+    table_name = recreate_update_stage_table(cursor)
+    mssql_conn.commit()
+    print(f"    Update stage table: {table_name}")
+    stage_phone_updates(cursor, mssql_conn, table_name, items)
+    elapsed = time.time() - t0
+    print(f"    Running UPDATE JOIN for {len(items):,} rows...")
+    updated = run_phone_update_join(cursor, table_name)
+    mssql_conn.commit()
+    total_elapsed = time.time() - t0
+    rate = updated / total_elapsed if total_elapsed > 0 else 0
+    print(f"    Updated {updated}/{len(items)} ({rate:.0f} rows/s)")
+    cursor.execute(f"DROP TABLE {table_name}")
+    mssql_conn.commit()
     cursor.close()
 
 
@@ -400,7 +454,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="Preview without updating SQL Server")
     parser.add_argument("--newest", action="store_true",
-                        help="Process newest records first (by PK descending)")
+                        help="Process newest records first (by Drop_Name descending)")
     args = parser.parse_args()
 
     print("Connecting to SQL Server...")
