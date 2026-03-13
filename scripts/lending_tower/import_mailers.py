@@ -22,6 +22,7 @@ from config import (
 )
 
 BATCH_SIZE = 1000
+SOURCE_BATCH_SIZE = 10000
 
 
 def get_mssql_connection():
@@ -46,25 +47,38 @@ def get_mysql_connection():
     )
 
 
-def fetch_mailers(mssql_conn, drop_name=None):
-    """Fetch mailer records from SQL Server."""
-    query = """
-        SELECT
+def fetch_mailers(mssql_conn, last_pk=0, drop_name=None, batch_size=SOURCE_BATCH_SIZE):
+    query = f"""
+        SELECT TOP {int(batch_size)}
             PK, Drop_Name, Client, External_ID,
             City, State, Zip,
             Debt_Amount, Old_Payment, New_Payment,
             Debt_Tier, Address, County, ELT_Score, Population
         FROM dbo.TblMailers
+        WHERE PK > %s
     """
+    params = [last_pk]
     if drop_name:
-        query += " WHERE Drop_Name = %s"
+        query += " AND Drop_Name = %s"
+        params.append(drop_name)
+    query += " ORDER BY PK"
 
     cursor = mssql_conn.cursor(as_dict=True)
+    cursor.execute(query, tuple(params))
+    rows = cursor.fetchall()
+    cursor.close()
+    return rows
+
+
+def count_mailers(mssql_conn, drop_name=None):
+    cursor = mssql_conn.cursor()
     if drop_name:
-        cursor.execute(query, (drop_name,))
+        cursor.execute("SELECT COUNT(*) FROM dbo.TblMailers WHERE Drop_Name = %s", (drop_name,))
     else:
-        cursor.execute(query)
-    return cursor
+        cursor.execute("SELECT COUNT(*) FROM dbo.TblMailers")
+    total = cursor.fetchone()[0]
+    cursor.close()
+    return total
 
 
 def insert_mailers(mysql_conn, rows, mailer_date):
@@ -137,14 +151,33 @@ def main():
     mysql_conn = get_mysql_connection()
 
     filter_msg = f" (drop: {args.drop_name})" if args.drop_name else " (all records)"
-    print(f"Fetching mailers{filter_msg}...")
-
-    rows = fetch_mailers(mssql_conn, args.drop_name)
+    print(f"Counting mailers{filter_msg}...")
+    total_source_rows = count_mailers(mssql_conn, args.drop_name)
+    print(f"Source rows: {total_source_rows}")
 
     print(f"Inserting into mailer_data (mailer_date={args.mailer_date})...")
-    inserted, skipped = insert_mailers(mysql_conn, rows, args.mailer_date)
+    total_read = 0
+    total_inserted = 0
+    total_skipped = 0
+    last_pk = 0
 
-    print(f"Done. Inserted: {inserted}, Duplicates skipped: {skipped}")
+    while True:
+        rows = fetch_mailers(mssql_conn, last_pk=last_pk, drop_name=args.drop_name)
+        if not rows:
+            break
+
+        inserted, skipped = insert_mailers(mysql_conn, rows, args.mailer_date)
+        total_read += len(rows)
+        total_inserted += inserted
+        total_skipped += skipped
+        last_pk = rows[-1]["PK"]
+
+        print(
+            f"Processed {total_read}/{total_source_rows} rows "
+            f"(last PK: {last_pk}, inserted: {total_inserted}, skipped: {total_skipped})"
+        )
+
+    print(f"Done. Read: {total_read}, Inserted: {total_inserted}, Duplicates skipped: {total_skipped}")
 
     mssql_conn.close()
     mysql_conn.close()
