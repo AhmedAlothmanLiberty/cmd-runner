@@ -24,7 +24,10 @@ from config import (
     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN,
 )
 
-ATHENA_POLL_INTERVAL = 2  # seconds
+ATHENA_BATCH_SIZE = 200  # records per Athena query (was 20)
+ATHENA_POLL_START = 0.5
+ATHENA_POLL_MAX = 3.0
+MYSQL_UPDATE_BATCH = 500
 
 
 def get_mysql_connection():
@@ -63,29 +66,50 @@ def parse_name(client_str):
     return "", ""
 
 
-def run_athena_query(athena_client, query):
-    """Submit an Athena query and wait for results."""
+def submit_athena_query(athena_client, query):
+    """Submit an Athena query, return query_id immediately."""
     response = athena_client.start_query_execution(
         QueryString=query,
         QueryExecutionContext={"Database": ATHENA_DATABASE},
         ResultConfiguration={"OutputLocation": ATHENA_RESULTS_BUCKET},
     )
-    query_id = response["QueryExecutionId"]
+    return response["QueryExecutionId"]
 
-    while True:
-        result = athena_client.get_query_execution(QueryExecutionId=query_id)
-        state = result["QueryExecution"]["Status"]["State"]
-        if state in ("SUCCEEDED", "FAILED", "CANCELLED"):
-            break
-        time.sleep(ATHENA_POLL_INTERVAL)
 
-    if state != "SUCCEEDED":
-        reason = result["QueryExecution"]["Status"].get("StateChangeReason", "Unknown")
-        print(f"  Athena query failed: {reason}")
-        return None
+def wait_for_queries(athena_client, query_ids):
+    """Wait for all submitted queries to finish. Returns dict {query_id: state}."""
+    pending = set(query_ids)
+    states = {}
+    poll_interval = ATHENA_POLL_START
 
-    results = athena_client.get_query_results(QueryExecutionId=query_id)
-    return results
+    while pending:
+        for qid in list(pending):
+            result = athena_client.get_query_execution(QueryExecutionId=qid)
+            state = result["QueryExecution"]["Status"]["State"]
+            if state in ("SUCCEEDED", "FAILED", "CANCELLED"):
+                states[qid] = state
+                pending.discard(qid)
+                if state != "SUCCEEDED":
+                    reason = result["QueryExecution"]["Status"].get("StateChangeReason", "Unknown")
+                    print(f"  Query {qid[:8]}... failed: {reason}")
+        if pending:
+            time.sleep(poll_interval)
+            poll_interval = min(poll_interval * 1.5, ATHENA_POLL_MAX)
+
+    return states
+
+
+def get_query_results_all(athena_client, query_id):
+    """Fetch all result pages for a completed Athena query."""
+    rows = []
+    paginator = athena_client.get_paginator("get_query_results")
+    for page in paginator.paginate(QueryExecutionId=query_id):
+        page_rows = page["ResultSet"]["Rows"]
+        if not rows:
+            rows.extend(page_rows)  # includes header
+        else:
+            rows.extend(page_rows)
+    return rows
 
 
 def lookup_phones_batch(athena_client, records):
@@ -96,19 +120,17 @@ def lookup_phones_batch(athena_client, records):
     if not records:
         return {}
 
-    # Build a UNION ALL query for all records
+    # Build conditions and id_map
     conditions = []
-    id_map = {}  # map (first_name, address) -> mailer_id
+    id_map = {}  # map (first_name|address) -> mailer_id
 
     for rec in records:
         first_name, last_name = parse_name(rec["client"])
         address = rec["address"].strip().upper() if rec["address"] else ""
-        zip_code = rec["zip"].strip() if rec["zip"] else ""
 
         if not first_name or not address:
             continue
 
-        # Escape single quotes
         first_name_esc = first_name.replace("'", "''")
         last_name_esc = last_name.replace("'", "''")
         address_esc = address.replace("'", "''")
@@ -125,12 +147,13 @@ def lookup_phones_batch(athena_client, records):
     if not conditions:
         return {}
 
-    # Batch into groups of 20 to avoid huge queries
-    results_map = {}
-    for i in range(0, len(conditions), 20):
-        batch_conditions = conditions[i:i + 20]
-        batch_records = records[i:i + 20]
+    # Submit all Athena queries concurrently in batches of ATHENA_BATCH_SIZE
+    query_ids = []
+    num_batches = (len(conditions) + ATHENA_BATCH_SIZE - 1) // ATHENA_BATCH_SIZE
+    print(f"  Submitting {num_batches} Athena queries ({len(conditions)} lookups)...")
 
+    for i in range(0, len(conditions), ATHENA_BATCH_SIZE):
+        batch_conditions = conditions[i:i + ATHENA_BATCH_SIZE]
         where_clause = " OR ".join(batch_conditions)
         query = f"""
             SELECT
@@ -146,18 +169,25 @@ def lookup_phones_batch(athena_client, records):
               AND TRY_CAST(p.phone_sequence_number AS INTEGER) <= 5
             ORDER BY n.first_name, a.address, TRY_CAST(p.phone_sequence_number AS INTEGER)
         """
+        qid = submit_athena_query(athena_client, query)
+        query_ids.append(qid)
 
-        athena_results = run_athena_query(athena_client, query)
-        if not athena_results:
+    # Wait for all queries to finish concurrently
+    print(f"  Waiting for {len(query_ids)} queries to complete...")
+    states = wait_for_queries(athena_client, query_ids)
+
+    # Collect results from all succeeded queries
+    results_map = {}
+    for qid in query_ids:
+        if states.get(qid) != "SUCCEEDED":
             continue
 
-        rows = athena_results["ResultSet"]["Rows"]
-        if len(rows) <= 1:  # header only
+        rows = get_query_results_all(athena_client, qid)
+        if len(rows) <= 1:
             continue
 
-        # Group phones by (first_name, address)
         phone_groups = {}
-        for row in rows[1:]:  # skip header
+        for row in rows[1:]:
             data = [col.get("VarCharValue", "") for col in row["Data"]]
             fname, addr, phone, seq = data[0], data[1], data[2], data[3]
             key = f"{fname}|{addr}"
@@ -175,15 +205,18 @@ def lookup_phones_batch(athena_client, records):
 
 
 def update_phones(mysql_conn, phone_map):
-    """Update phone columns in mailer_data."""
+    """Update phone columns in mailer_data using batch updates."""
     cursor = mysql_conn.cursor()
-    for mailer_id, phones in phone_map.items():
-        cursor.execute("""
-            UPDATE mailer_data
-            SET phone1 = %s, phone2 = %s, phone3 = %s, phone4 = %s, phone5 = %s
-            WHERE id = %s
-        """, (*phones, mailer_id))
-    mysql_conn.commit()
+    items = list(phone_map.items())
+    for i in range(0, len(items), MYSQL_UPDATE_BATCH):
+        batch = items[i:i + MYSQL_UPDATE_BATCH]
+        for mailer_id, phones in batch:
+            cursor.execute("""
+                UPDATE mailer_data
+                SET phone1 = %s, phone2 = %s, phone3 = %s, phone4 = %s, phone5 = %s
+                WHERE id = %s
+            """, (*phones, mailer_id))
+        mysql_conn.commit()
     cursor.close()
 
 
