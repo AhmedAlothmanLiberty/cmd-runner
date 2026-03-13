@@ -154,30 +154,30 @@ def update_sms_dates(mysql_conn, record_ids):
     cursor.close()
 
 
+def parse_first_name(client_str):
+    """Extract first name from Client field (e.g. 'JOHN MICHAEL DOE' -> 'JOHN')."""
+    parts = client_str.strip().upper().split() if client_str else []
+    return parts[0] if parts else ""
+
+
 def write_report(rows, output_path):
-    """Write report rows to CSV."""
+    """Write report rows to CSV with 4 columns: First name, address, debt load, cell phone."""
     if not rows:
         print("No records to write.")
         return
 
-    fieldnames = [
-        "id", "original_pk", "drop_name", "client", "external_id",
-        "city", "state", "zip", "debt_amount", "address",
-        "phone1", "phone2", "phone3", "phone4", "phone5",
-        "mailer_date", "sms_date",
-    ]
+    fieldnames = ["First name", "address", "debt load", "cell phone"]
 
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
-            row_out = {}
-            for k in fieldnames:
-                val = row.get(k, "")
-                if isinstance(val, (date, datetime)):
-                    val = val.isoformat()
-                row_out[k] = val
-            writer.writerow(row_out)
+            writer.writerow({
+                "First name": parse_first_name(row.get("client", "")),
+                "address": row.get("address", ""),
+                "debt load": row.get("debt_amount", ""),
+                "cell phone": row.get("phone1", ""),
+            })
 
     print(f"Report written to: {output_path}")
 
