@@ -1,19 +1,28 @@
 """
-Enrich mailer_data records with phone numbers from the TU Identity Graph.
+Bulk enrich mailer_data with phone numbers from the TU Identity Graph.
 
-Queries Athena to match mailer records (by name + address) against the TU graph
-name + address + phone tables, then updates the RDS MySQL mailer_data table.
+Strategy (single Athena query via S3 staging table):
+  1. Export unenriched rows from MySQL to CSV
+  2. Upload CSV to S3
+  3. Create/replace a temp Athena external table over that CSV
+  4. Run ONE Athena JOIN query against TU graph name+address+phone
+  5. Paginate results and batch-update MySQL
+  6. Mark all attempted rows so unmatched ones aren't retried
 
 Usage:
-    python enrich_phones.py [--limit 1000] [--dry-run]
+    python enrich_phones.py [--limit 0] [--dry-run]
 
 Options:
-    --limit   Max number of records to enrich per run (default: 1000)
-    --dry-run Preview matches without updating
+    --limit   Max records to process (0 = all unenriched, default: 0)
+    --dry-run Preview matches without updating MySQL
 """
 import argparse
+import csv
+import io
+import os
 import time
 import sys
+from datetime import datetime
 
 import boto3
 import pymysql
@@ -24,40 +33,72 @@ from config import (
     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN,
 )
 
-ATHENA_BATCH_SIZE = 200  # records per Athena query (was 20)
+STAGING_S3_PREFIX = "staging/enrich_phones"
+STAGING_TABLE = "tmp_mailer_lookup"
 ATHENA_POLL_START = 0.5
-ATHENA_POLL_MAX = 3.0
-MYSQL_UPDATE_BATCH = 500
+ATHENA_POLL_MAX = 4.0
+MYSQL_BATCH = 1000
 
 
+# ---------------------------------------------------------------------------
+# AWS clients
+# ---------------------------------------------------------------------------
+def get_boto3_kwargs():
+    kwargs = {"region_name": AWS_REGION}
+    if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
+        kwargs["aws_access_key_id"] = AWS_ACCESS_KEY_ID
+        kwargs["aws_secret_access_key"] = AWS_SECRET_ACCESS_KEY
+        if AWS_SESSION_TOKEN:
+            kwargs["aws_session_token"] = AWS_SESSION_TOKEN
+    return kwargs
+
+
+# ---------------------------------------------------------------------------
+# MySQL helpers
+# ---------------------------------------------------------------------------
 def get_mysql_connection():
     return pymysql.connect(
-        host=MYSQL_HOST,
-        port=MYSQL_PORT,
-        user=MYSQL_USER,
-        password=MYSQL_PASSWORD,
-        database=MYSQL_DATABASE,
-        charset="utf8mb4",
-        autocommit=False,
+        host=MYSQL_HOST, port=MYSQL_PORT,
+        user=MYSQL_USER, password=MYSQL_PASSWORD,
+        database=MYSQL_DATABASE, charset="utf8mb4", autocommit=False,
     )
 
 
-def get_records_without_phones(mysql_conn, limit):
-    """Get mailer records that have no phone1 yet."""
-    cursor = mysql_conn.cursor(pymysql.cursors.DictCursor)
-    cursor.execute("""
+def ensure_column(mysql_conn):
+    """Add enrich_attempted_at column if it doesn't exist."""
+    cur = mysql_conn.cursor()
+    cur.execute("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'mailer_data'
+          AND COLUMN_NAME = 'enrich_attempted_at'
+    """, (MYSQL_DATABASE,))
+    if cur.fetchone()[0] == 0:
+        print("  Adding enrich_attempted_at column...")
+        cur.execute("ALTER TABLE mailer_data ADD COLUMN enrich_attempted_at DATETIME NULL DEFAULT NULL")
+        mysql_conn.commit()
+    cur.close()
+
+
+def fetch_unenriched(mysql_conn, limit):
+    """Fetch rows where phone1 is empty AND we haven't tried yet."""
+    cur = mysql_conn.cursor(pymysql.cursors.DictCursor)
+    sql = """
         SELECT id, client, address, city, state, zip
         FROM mailer_data
         WHERE (phone1 IS NULL OR phone1 = '')
-        LIMIT %s
-    """, (limit,))
-    rows = cursor.fetchall()
-    cursor.close()
+          AND enrich_attempted_at IS NULL
+    """
+    if limit > 0:
+        sql += " LIMIT %s"
+        cur.execute(sql, (limit,))
+    else:
+        cur.execute(sql)
+    rows = cur.fetchall()
+    cur.close()
     return rows
 
 
 def parse_name(client_str):
-    """Parse 'FIRST MIDDLE LAST' from Client field. Returns (first_name, last_name)."""
     parts = client_str.strip().upper().split()
     if len(parts) >= 2:
         return parts[0], parts[-1]
@@ -66,202 +107,263 @@ def parse_name(client_str):
     return "", ""
 
 
-def submit_athena_query(athena_client, query):
-    """Submit an Athena query, return query_id immediately."""
-    response = athena_client.start_query_execution(
+# ---------------------------------------------------------------------------
+# S3 staging
+# ---------------------------------------------------------------------------
+def results_bucket_name():
+    """Extract bucket name from s3://bucket/... URI."""
+    return ATHENA_RESULTS_BUCKET.replace("s3://", "").strip("/").split("/")[0]
+
+
+def upload_staging_csv(s3_client, records):
+    """Build CSV in memory and upload to S3. Returns S3 URI of folder."""
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    skipped = 0
+    for rec in records:
+        first_name, last_name = parse_name(rec["client"])
+        address = rec["address"].strip().upper() if rec["address"] else ""
+        if not first_name or not address:
+            skipped += 1
+            continue
+        writer.writerow([rec["id"], first_name, last_name, address])
+
+    bucket = results_bucket_name()
+    key = f"{STAGING_S3_PREFIX}/lookup.csv"
+    s3_client.put_object(Bucket=bucket, Key=key, Body=buf.getvalue().encode("utf-8"))
+    print(f"  Uploaded {len(records) - skipped} rows to s3://{bucket}/{key} (skipped {skipped})")
+    return f"s3://{bucket}/{STAGING_S3_PREFIX}/"
+
+
+def cleanup_staging(s3_client):
+    bucket = results_bucket_name()
+    key = f"{STAGING_S3_PREFIX}/lookup.csv"
+    try:
+        s3_client.delete_object(Bucket=bucket, Key=key)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Athena helpers
+# ---------------------------------------------------------------------------
+def run_athena(athena_client, query):
+    """Submit query, poll until done, return query_id or None."""
+    resp = athena_client.start_query_execution(
         QueryString=query,
         QueryExecutionContext={"Database": ATHENA_DATABASE},
         ResultConfiguration={"OutputLocation": ATHENA_RESULTS_BUCKET},
     )
-    return response["QueryExecutionId"]
+    qid = resp["QueryExecutionId"]
+    poll = ATHENA_POLL_START
+    while True:
+        st = athena_client.get_query_execution(QueryExecutionId=qid)
+        state = st["QueryExecution"]["Status"]["State"]
+        if state == "SUCCEEDED":
+            return qid
+        if state in ("FAILED", "CANCELLED"):
+            reason = st["QueryExecution"]["Status"].get("StateChangeReason", "Unknown")
+            print(f"  Athena query {state}: {reason}")
+            return None
+        time.sleep(poll)
+        poll = min(poll * 1.5, ATHENA_POLL_MAX)
 
 
-def wait_for_queries(athena_client, query_ids):
-    """Wait for all submitted queries to finish. Returns dict {query_id: state}."""
-    pending = set(query_ids)
-    states = {}
-    poll_interval = ATHENA_POLL_START
+def create_staging_table(athena_client, s3_location):
+    """Create or replace the temp external table in Athena."""
+    drop_q = f'DROP TABLE IF EXISTS "{ATHENA_DATABASE}"."{STAGING_TABLE}"'
+    run_athena(athena_client, drop_q)
 
-    while pending:
-        for qid in list(pending):
-            result = athena_client.get_query_execution(QueryExecutionId=qid)
-            state = result["QueryExecution"]["Status"]["State"]
-            if state in ("SUCCEEDED", "FAILED", "CANCELLED"):
-                states[qid] = state
-                pending.discard(qid)
-                if state != "SUCCEEDED":
-                    reason = result["QueryExecution"]["Status"].get("StateChangeReason", "Unknown")
-                    print(f"  Query {qid[:8]}... failed: {reason}")
-        if pending:
-            time.sleep(poll_interval)
-            poll_interval = min(poll_interval * 1.5, ATHENA_POLL_MAX)
-
-    return states
-
-
-def get_query_results_all(athena_client, query_id):
-    """Fetch all result pages for a completed Athena query."""
-    rows = []
-    paginator = athena_client.get_paginator("get_query_results")
-    for page in paginator.paginate(QueryExecutionId=query_id):
-        page_rows = page["ResultSet"]["Rows"]
-        if not rows:
-            rows.extend(page_rows)  # includes header
-        else:
-            rows.extend(page_rows)
-    return rows
-
-
-def lookup_phones_batch(athena_client, records):
-    """
-    Look up phone numbers for a batch of records via Athena.
-    Returns dict of {mailer_id: [phone1, phone2, ..., phone5]}
-    """
-    if not records:
-        return {}
-
-    # Build conditions and id_map
-    conditions = []
-    id_map = {}  # map (first_name|address) -> mailer_id
-
-    for rec in records:
-        first_name, last_name = parse_name(rec["client"])
-        address = rec["address"].strip().upper() if rec["address"] else ""
-
-        if not first_name or not address:
-            continue
-
-        first_name_esc = first_name.replace("'", "''")
-        last_name_esc = last_name.replace("'", "''")
-        address_esc = address.replace("'", "''")
-
-        key = f"{first_name}|{address}"
-        id_map[key] = rec["id"]
-
-        conditions.append(
-            f"(UPPER(n.first_name) = '{first_name_esc}' "
-            f"AND UPPER(n.last_name) = '{last_name_esc}' "
-            f"AND UPPER(a.address) = '{address_esc}')"
+    create_q = f"""
+        CREATE EXTERNAL TABLE "{ATHENA_DATABASE}"."{STAGING_TABLE}" (
+            mailer_id INT,
+            first_name STRING,
+            last_name STRING,
+            address STRING
         )
+        ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+        WITH SERDEPROPERTIES (
+            'separatorChar' = ',',
+            'quoteChar' = '"',
+            'escapeChar' = '\\\\'
+        )
+        STORED AS TEXTFILE
+        LOCATION '{s3_location}'
+    """
+    qid = run_athena(athena_client, create_q)
+    if qid:
+        print(f"  Staging table created: {STAGING_TABLE}")
+    return qid is not None
 
-    if not conditions:
-        return {}
 
-    # Submit all Athena queries concurrently in batches of ATHENA_BATCH_SIZE
-    query_ids = []
-    num_batches = (len(conditions) + ATHENA_BATCH_SIZE - 1) // ATHENA_BATCH_SIZE
-    print(f"  Submitting {num_batches} Athena queries ({len(conditions)} lookups)...")
+def drop_staging_table(athena_client):
+    run_athena(athena_client, f'DROP TABLE IF EXISTS "{ATHENA_DATABASE}"."{STAGING_TABLE}"')
 
-    for i in range(0, len(conditions), ATHENA_BATCH_SIZE):
-        batch_conditions = conditions[i:i + ATHENA_BATCH_SIZE]
-        where_clause = " OR ".join(batch_conditions)
-        query = f"""
-            SELECT
-                UPPER(n.first_name) as first_name,
-                UPPER(a.address) as address,
-                p.phone,
-                p.phone_sequence_number
-            FROM "{ATHENA_DATABASE}".name n
-            JOIN "{ATHENA_DATABASE}".address a ON n.extern_tuid = a.extern_tuid
-            JOIN "{ATHENA_DATABASE}".phone p ON n.extern_tuid = p.extern_tuid
-            WHERE ({where_clause})
-              AND p.phone_sequence_number <> ''
-              AND TRY_CAST(p.phone_sequence_number AS INTEGER) <= 5
-            ORDER BY n.first_name, a.address, TRY_CAST(p.phone_sequence_number AS INTEGER)
-        """
-        qid = submit_athena_query(athena_client, query)
-        query_ids.append(qid)
 
-    # Wait for all queries to finish concurrently
-    print(f"  Waiting for {len(query_ids)} queries to complete...")
-    states = wait_for_queries(athena_client, query_ids)
+def run_enrichment_query(athena_client):
+    """Single JOIN query: staging table × TU graph → matched phones."""
+    query = f"""
+        SELECT
+            m.mailer_id,
+            p.phone,
+            TRY_CAST(p.phone_sequence_number AS INTEGER) AS seq
+        FROM "{ATHENA_DATABASE}"."{STAGING_TABLE}" m
+        JOIN "{ATHENA_DATABASE}".name n
+            ON UPPER(n.first_name) = UPPER(m.first_name)
+           AND UPPER(n.last_name) = UPPER(m.last_name)
+        JOIN "{ATHENA_DATABASE}".address a
+            ON n.extern_tuid = a.extern_tuid
+           AND UPPER(a.address) = UPPER(m.address)
+        JOIN "{ATHENA_DATABASE}".phone p
+            ON n.extern_tuid = p.extern_tuid
+        WHERE p.phone_sequence_number <> ''
+          AND TRY_CAST(p.phone_sequence_number AS INTEGER) <= 5
+        ORDER BY m.mailer_id, TRY_CAST(p.phone_sequence_number AS INTEGER)
+    """
+    return run_athena(athena_client, query)
 
-    # Collect results from all succeeded queries
-    results_map = {}
-    for qid in query_ids:
-        if states.get(qid) != "SUCCEEDED":
-            continue
 
-        rows = get_query_results_all(athena_client, qid)
-        if len(rows) <= 1:
-            continue
+def paginate_results(athena_client, query_id):
+    """Paginate Athena results into a dict {mailer_id: [phone1..phone5]}."""
+    phone_map = {}
+    paginator = athena_client.get_paginator("get_query_results")
+    first_page = True
 
-        phone_groups = {}
-        for row in rows[1:]:
+    for page in paginator.paginate(QueryExecutionId=query_id):
+        rows = page["ResultSet"]["Rows"]
+        start = 1 if first_page else 0  # skip header on first page
+        first_page = False
+
+        for row in rows[start:]:
             data = [col.get("VarCharValue", "") for col in row["Data"]]
-            fname, addr, phone, seq = data[0], data[1], data[2], data[3]
-            key = f"{fname}|{addr}"
-            if key not in phone_groups:
-                phone_groups[key] = []
-            if phone and len(phone_groups[key]) < 5:
-                phone_groups[key].append(phone)
+            try:
+                mid = int(data[0])
+            except (ValueError, IndexError):
+                continue
+            phone = data[1] if len(data) > 1 else ""
+            if not phone:
+                continue
+            if mid not in phone_map:
+                phone_map[mid] = []
+            if len(phone_map[mid]) < 5:
+                phone_map[mid].append(phone)
 
-        for key, phones in phone_groups.items():
-            if key in id_map:
-                padded = (phones + [None] * 5)[:5]
-                results_map[id_map[key]] = padded
+    # Pad to 5
+    for mid in phone_map:
+        phone_map[mid] = (phone_map[mid] + [None] * 5)[:5]
 
-    return results_map
+    return phone_map
 
 
+# ---------------------------------------------------------------------------
+# MySQL update
+# ---------------------------------------------------------------------------
 def update_phones(mysql_conn, phone_map):
-    """Update phone columns in mailer_data using batch updates."""
-    cursor = mysql_conn.cursor()
+    cur = mysql_conn.cursor()
     items = list(phone_map.items())
-    for i in range(0, len(items), MYSQL_UPDATE_BATCH):
-        batch = items[i:i + MYSQL_UPDATE_BATCH]
+    for i in range(0, len(items), MYSQL_BATCH):
+        batch = items[i:i + MYSQL_BATCH]
         for mailer_id, phones in batch:
-            cursor.execute("""
+            cur.execute("""
                 UPDATE mailer_data
-                SET phone1 = %s, phone2 = %s, phone3 = %s, phone4 = %s, phone5 = %s
-                WHERE id = %s
+                SET phone1=%s, phone2=%s, phone3=%s, phone4=%s, phone5=%s
+                WHERE id=%s
             """, (*phones, mailer_id))
         mysql_conn.commit()
-    cursor.close()
+        print(f"    Updated {min(i + MYSQL_BATCH, len(items))}/{len(items)}...")
+    cur.close()
 
 
+def mark_attempted(mysql_conn, record_ids):
+    """Mark all processed rows so they won't be retried."""
+    cur = mysql_conn.cursor()
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    for i in range(0, len(record_ids), MYSQL_BATCH):
+        batch = record_ids[i:i + MYSQL_BATCH]
+        placeholders = ",".join(["%s"] * len(batch))
+        cur.execute(f"UPDATE mailer_data SET enrich_attempted_at=%s WHERE id IN ({placeholders})",
+                    [now] + batch)
+        mysql_conn.commit()
+    cur.close()
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(description="Enrich mailer_data with TU graph phone numbers")
-    parser.add_argument("--limit", type=int, default=1000,
-                        help="Max records to enrich per run (default: 1000)")
+    t0 = time.time()
+    parser = argparse.ArgumentParser(description="Bulk enrich mailer_data with TU graph phones")
+    parser.add_argument("--limit", type=int, default=0,
+                        help="Max records (0 = all unenriched)")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Preview matches without updating")
+                        help="Preview without updating MySQL")
     args = parser.parse_args()
 
-    print(f"Connecting to RDS MySQL...")
+    print("Step 1: Connecting to RDS MySQL...")
     mysql_conn = get_mysql_connection()
+    ensure_column(mysql_conn)
 
-    print(f"Fetching up to {args.limit} records without phone numbers...")
-    records = get_records_without_phones(mysql_conn, args.limit)
-    print(f"  Found {len(records)} records to enrich.")
-
+    print("Step 2: Fetching unenriched records...")
+    records = fetch_unenriched(mysql_conn, args.limit)
+    print(f"  Found {len(records)} unenriched records.")
     if not records:
         print("Nothing to enrich.")
         mysql_conn.close()
         return
 
-    print("Querying TU Identity Graph via Athena...")
-    boto3_kwargs = {"region_name": AWS_REGION}
-    if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
-        boto3_kwargs["aws_access_key_id"] = AWS_ACCESS_KEY_ID
-        boto3_kwargs["aws_secret_access_key"] = AWS_SECRET_ACCESS_KEY
-        if AWS_SESSION_TOKEN:
-            boto3_kwargs["aws_session_token"] = AWS_SESSION_TOKEN
-    athena_client = boto3.client("athena", **boto3_kwargs)
-    phone_map = lookup_phones_batch(athena_client, records)
-    print(f"  Matched phones for {len(phone_map)} records.")
+    bk = get_boto3_kwargs()
+    s3_client = boto3.client("s3", **bk)
+    athena_client = boto3.client("athena", **bk)
+
+    print("Step 3: Uploading staging CSV to S3...")
+    s3_location = upload_staging_csv(s3_client, records)
+
+    print("Step 4: Creating Athena staging table...")
+    if not create_staging_table(athena_client, s3_location):
+        print("ERROR: Failed to create staging table.")
+        cleanup_staging(s3_client)
+        mysql_conn.close()
+        return
+
+    print("Step 5: Running enrichment query (single JOIN)...")
+    qid = run_enrichment_query(athena_client)
+    if not qid:
+        print("ERROR: Enrichment query failed.")
+        drop_staging_table(athena_client)
+        cleanup_staging(s3_client)
+        mysql_conn.close()
+        return
+
+    print("Step 6: Fetching results...")
+    phone_map = paginate_results(athena_client, qid)
+    print(f"  Matched phones for {len(phone_map)} / {len(records)} records.")
+
+    all_ids = [r["id"] for r in records]
 
     if args.dry_run:
         for mid, phones in list(phone_map.items())[:10]:
             print(f"    ID {mid}: {phones}")
-        print(f"\n[DRY RUN] No updates made.")
+        print(f"\n[DRY RUN] No MySQL updates made.")
     else:
-        print("Updating phone numbers in mailer_data...")
+        print("Step 7: Updating phone numbers in MySQL...")
         update_phones(mysql_conn, phone_map)
-        print(f"  Updated {len(phone_map)} records.")
+        print(f"  Updated {len(phone_map)} records with phones.")
+
+        print("Step 8: Marking all records as attempted...")
+        mark_attempted(mysql_conn, all_ids)
+        print(f"  Marked {len(all_ids)} records.")
+
+    print("Cleaning up staging...")
+    drop_staging_table(athena_client)
+    cleanup_staging(s3_client)
+
+    elapsed = time.time() - t0
+    print(f"\nDone in {elapsed:.1f}s ({elapsed/60:.1f}m).")
+    print(f"  Records processed: {len(records)}")
+    print(f"  Phones matched:    {len(phone_map)}")
+    print(f"  Match rate:        {len(phone_map)/len(records)*100:.1f}%")
 
     mysql_conn.close()
-    print("Done.")
 
 
 if __name__ == "__main__":
