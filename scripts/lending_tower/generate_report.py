@@ -160,6 +160,18 @@ def parse_first_name(client_str):
     return parts[0] if parts else ""
 
 
+def format_debt_load(value):
+    if value in (None, ""):
+        return ""
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return value
+    if numeric.is_integer():
+        return str(int(numeric))
+    return f"{numeric:.2f}".rstrip("0").rstrip(".")
+
+
 def write_report(rows, output_path):
     """Write report rows to CSV with 4 columns: First name, address, debt load, cell phone."""
     if not rows:
@@ -174,8 +186,8 @@ def write_report(rows, output_path):
         for row in rows:
             writer.writerow({
                 "First name": parse_first_name(row.get("client", "")),
-                "address": row.get("address", ""),
-                "debt load": row.get("debt_amount", ""),
+                "address": (row.get("address", "") or "").upper(),
+                "debt load": format_debt_load(row.get("debt_amount", "")),
                 "cell phone": row.get("phone1", ""),
             })
 
