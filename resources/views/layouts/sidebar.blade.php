@@ -75,6 +75,16 @@
             ->user()
             ->hasAnyRole(['admin', 'automation', 'super-admin'])
     ) {
+        if (auth()->user()->hasAnyRole(['admin', 'super-admin'])) {
+            $links[] = [
+                'label' => 'Lending Tower',
+                'description' => 'Preview and download SMS reports',
+                'href' => route('admin.lending-tower.reports.index'),
+                'active' => request()->routeIs('admin.lending-tower.*'),
+                'icon' => 'file-earmark-spreadsheet',
+            ];
+        }
+
         $links[] = [
             'label' => 'Automations',
             'description' => 'Manage automation jobs',

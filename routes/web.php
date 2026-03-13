@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Admin\PackageUpdateController;
 use App\Http\Controllers\Admin\TaskController;
 use App\Http\Controllers\Admin\EasyEngineJobController;
+use App\Http\Controllers\Admin\LendingTowerReportController;
 use App\Http\Controllers\Admin\S3UploadJobController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
@@ -146,6 +147,15 @@ Route::middleware(['auth', 'role:super-admin'])
                 Route::get('/', [PackageUpdateController::class, 'index'])->name('index');
                 Route::post('/run', [PackageUpdateController::class, 'run'])->name('run');
             });
+    });
+
+Route::middleware(['auth', 'role:admin|super-admin'])
+    ->prefix('admin/lending-tower')
+    ->name('admin.lending-tower.')
+    ->group(function () {
+        Route::get('/reports', [LendingTowerReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports/{file}/download', [LendingTowerReportController::class, 'download'])
+            ->name('reports.download');
     });
 
 Route::middleware(['auth', 'role:admin|automation|super-admin'])
