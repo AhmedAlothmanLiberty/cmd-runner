@@ -171,11 +171,11 @@ def run_athena(athena_client, query):
 
 def create_staging_table(athena_client, s3_location):
     """Create or replace the temp external table in Athena."""
-    drop_q = f'DROP TABLE IF EXISTS "{ATHENA_DATABASE}"."{STAGING_TABLE}"'
+    drop_q = f'DROP TABLE IF EXISTS `{ATHENA_DATABASE}`.`{STAGING_TABLE}`'
     run_athena(athena_client, drop_q)
 
     create_q = f"""
-        CREATE EXTERNAL TABLE "{ATHENA_DATABASE}"."{STAGING_TABLE}" (
+        CREATE EXTERNAL TABLE `{ATHENA_DATABASE}`.`{STAGING_TABLE}` (
             mailer_id INT,
             first_name STRING,
             last_name STRING,
@@ -197,7 +197,7 @@ def create_staging_table(athena_client, s3_location):
 
 
 def drop_staging_table(athena_client):
-    run_athena(athena_client, f'DROP TABLE IF EXISTS "{ATHENA_DATABASE}"."{STAGING_TABLE}"')
+    run_athena(athena_client, f'DROP TABLE IF EXISTS `{ATHENA_DATABASE}`.`{STAGING_TABLE}`')
 
 
 def run_enrichment_query(athena_client):
