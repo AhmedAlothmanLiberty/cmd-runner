@@ -96,18 +96,46 @@ def count_unenriched(mssql_conn):
     return total
 
 
-def fetch_unenriched_chunk(mssql_conn, last_pk, chunk_size, newest_first=False):
-    order = "DESC" if newest_first else "ASC"
-    op = "<" if newest_first else ">"
+def fetch_unenriched_chunk(mssql_conn, chunk_size, newest_first=False,
+                          last_drop=None, last_pk=None):
+    """Fetch unenriched rows. newest_first orders by Drop_Name DESC."""
     cursor = mssql_conn.cursor(as_dict=True)
-    cursor.execute(f"""
-        SELECT TOP {int(chunk_size)}
-            PK, Client, Address, City, State, Zip
-        FROM dbo.TblMailersUnique
-        WHERE phone1 IS NULL
-          AND PK {op} %s
-        ORDER BY PK {order}
-    """, (last_pk,))
+    if newest_first:
+        if last_drop is not None and last_pk is not None:
+            cursor.execute(f"""
+                SELECT TOP {int(chunk_size)}
+                    PK, Drop_Name, Client, Address, City, State, Zip
+                FROM dbo.TblMailersUnique
+                WHERE phone1 IS NULL
+                  AND (Drop_Name < %s OR (Drop_Name = %s AND PK < %s))
+                ORDER BY Drop_Name DESC, PK DESC
+            """, (last_drop, last_drop, last_pk))
+        else:
+            cursor.execute(f"""
+                SELECT TOP {int(chunk_size)}
+                    PK, Drop_Name, Client, Address, City, State, Zip
+                FROM dbo.TblMailersUnique
+                WHERE phone1 IS NULL
+                ORDER BY Drop_Name DESC, PK DESC
+            """)
+    else:
+        if last_pk is not None:
+            cursor.execute(f"""
+                SELECT TOP {int(chunk_size)}
+                    PK, Drop_Name, Client, Address, City, State, Zip
+                FROM dbo.TblMailersUnique
+                WHERE phone1 IS NULL
+                  AND PK > %s
+                ORDER BY PK ASC
+            """, (last_pk,))
+        else:
+            cursor.execute(f"""
+                SELECT TOP {int(chunk_size)}
+                    PK, Drop_Name, Client, Address, City, State, Zip
+                FROM dbo.TblMailersUnique
+                WHERE phone1 IS NULL
+                ORDER BY PK ASC
+            """)
     rows = cursor.fetchall()
     cursor.close()
     return rows
@@ -394,7 +422,8 @@ def main():
 
     total_processed = 0
     total_matched = 0
-    last_pk = 0 if not args.newest else 999999999
+    last_drop = None
+    last_pk = None
     chunk_num = 0
 
     while total_processed < target:
@@ -403,18 +432,23 @@ def main():
         this_chunk = min(args.chunk_size, remaining)
 
         print(f"\n{'='*60}")
-        print(f"Chunk {chunk_num}: fetching up to {this_chunk:,} rows (last_pk={last_pk})")
+        print(f"Chunk {chunk_num}: fetching up to {this_chunk:,} rows (last_drop={last_drop}, last_pk={last_pk})")
         print(f"{'='*60}")
-        records = fetch_unenriched_chunk(mssql_conn, last_pk, this_chunk, newest_first=args.newest)
+        records = fetch_unenriched_chunk(mssql_conn, this_chunk,
+                                         newest_first=args.newest,
+                                         last_drop=last_drop, last_pk=last_pk)
         if not records:
             print("  No more unenriched rows.")
             break
 
         total_processed += len(records)
         if args.newest:
-            last_pk = min(r["PK"] for r in records)
+            last_drop = records[-1]["Drop_Name"]
+            last_pk = records[-1]["PK"]
         else:
             last_pk = max(r["PK"] for r in records)
+
+        print(f"  Drop range: {records[0]['Drop_Name']} -> {records[-1]['Drop_Name']}")
 
         print(f"  Fetched {len(records):,} rows. Uploading staging CSV...")
         s3_location = upload_staging_csv(s3_client, records)
