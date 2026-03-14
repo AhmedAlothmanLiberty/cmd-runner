@@ -57,29 +57,45 @@ def format_debt_load(value):
     return f"{numeric:.2f}".rstrip("0").rstrip(".")
 
 
-def fetch_enriched(mssql_conn, count, unsent_only, last_pk=0):
-    """Fetch enriched rows from TblMailersUnique."""
+def fetch_enriched(mssql_conn, count, unsent_only, chunk_size=50000):
+    """Fetch enriched rows from TblMailersUnique in chunks."""
     cursor = mssql_conn.cursor(as_dict=True)
-
-    where_clause = "WHERE phone1 IS NOT NULL AND PK > %s"
+    
+    where_clause = "WHERE phone1 IS NOT NULL"
     if unsent_only:
         where_clause += " AND sms_send_date IS NULL"
-
-    limit_clause = f"TOP {int(count)}" if count > 0 else ""
-
-    query = f"""
-        SELECT {limit_clause}
-            PK, Client, Address, Debt_Amount,
-            phone1, phone2, phone3, phone4, phone5,
-            sms_send_date
-        FROM dbo.TblMailersUnique
-        {where_clause}
-        ORDER BY PK ASC
-    """
-    cursor.execute(query, (last_pk,))
-    rows = cursor.fetchall()
+    
+    total_fetched = 0
+    last_pk = 0
+    
+    while total_fetched < count:
+        remaining = count - total_fetched
+        this_chunk = min(chunk_size, remaining)
+        
+        print(f"  Fetching chunk: {this_chunk:,} rows (total so far: {total_fetched:,})")
+        
+        query = f"""
+            SELECT TOP {int(this_chunk)}
+                PK, Client, Address, Debt_Amount,
+                phone1, phone2, phone3, phone4, phone5,
+                sms_send_date
+            FROM dbo.TblMailersUnique
+            {where_clause} AND PK > %s
+            ORDER BY PK ASC
+        """
+        cursor.execute(query, (last_pk,))
+        chunk_rows = cursor.fetchall()
+        
+        if not chunk_rows:
+            break
+            
+        yield from chunk_rows
+        total_fetched += len(chunk_rows)
+        last_pk = max(r["PK"] for r in chunk_rows)
+        
+        print(f"  Progress: {total_fetched:,}/{count:,} fetched")
+    
     cursor.close()
-    return rows
 
 
 def update_send_dates(mssql_conn, pks, send_date):
@@ -117,7 +133,11 @@ def main():
     conn = get_mssql_connection()
 
     print("Fetching enriched records...")
-    rows = fetch_enriched(conn, args.count, args.unsent_only)
+    rows_generator = fetch_enriched(conn, args.count, args.unsent_only)
+    
+    # First, collect all rows to count them (but process in chunks)
+    print("  Collecting all records...")
+    rows = list(rows_generator)
     print(f"  Found {len(rows)} enriched records.")
 
     if not rows:
@@ -135,18 +155,23 @@ def main():
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        for row in rows:
-            writer.writerow({
-                "First name": parse_first_name(row.get("Client", "")),
-                "address": (row.get("Address", "") or "").upper(),
-                "debt load": format_debt_load(row.get("Debt_Amount", "")),
-                "phone1": row.get("phone1", "") or "",
-                "phone2": row.get("phone2", "") or "",
-                "phone3": row.get("phone3", "") or "",
-                "phone4": row.get("phone4", "") or "",
-                "phone5": row.get("phone5", "") or "",
-                "send date": send_date,
-            })
+        
+        # Write in batches to avoid memory issues
+        for i in range(0, len(rows), 10000):
+            batch = rows[i:i + 10000]
+            for row in batch:
+                writer.writerow({
+                    "First name": parse_first_name(row.get("Client", "")),
+                    "address": (row.get("Address", "") or "").upper(),
+                    "debt load": format_debt_load(row.get("Debt_Amount", "")),
+                    "phone1": row.get("phone1", "") or "",
+                    "phone2": row.get("phone2", "") or "",
+                    "phone3": row.get("phone3", "") or "",
+                    "phone4": row.get("phone4", "") or "",
+                    "phone5": row.get("phone5", "") or "",
+                    "send date": send_date,
+                })
+            print(f"  Written {min(i + 10000, len(rows)):,}/{len(rows):,} rows")
 
     print(f"Report written: {output_path} ({len(rows)} rows)")
 
