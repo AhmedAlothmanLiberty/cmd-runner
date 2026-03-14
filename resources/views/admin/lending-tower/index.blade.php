@@ -30,7 +30,7 @@
 
     @if (! $latestFile)
         <div class="alert alert-info mb-0">
-            No Lending Tower report CSV files were found in <code>scripts/lending_tower</code>.
+            No Lending Tower report CSV files were found in <code>EE/</code>.
         </div>
     @else
         <div class="row g-3 mb-4">

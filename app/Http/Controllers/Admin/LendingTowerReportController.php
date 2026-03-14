@@ -12,7 +12,7 @@ class LendingTowerReportController extends Controller
 {
     public function index(): View
     {
-        $files = collect(File::glob(base_path('scripts/lending_tower/sms_report*.csv')))
+        $files = collect(File::glob(base_path('EE/sam_export*.csv')))
             ->filter(static fn (string $path): bool => File::exists($path))
             ->map(function (string $path): array {
                 $size = File::size($path);
@@ -29,7 +29,7 @@ class LendingTowerReportController extends Controller
 
         $latestFile = $files->first();
         [$previewHeader, $previewRows, $rowCount] = $latestFile
-            ? $this->previewCsv(base_path('scripts/lending_tower/' . $latestFile['name']))
+            ? $this->previewCsv(base_path('EE/' . $latestFile['name']))
             : [[], [], 0];
 
         return view('admin.lending-tower.index', [
@@ -45,11 +45,11 @@ class LendingTowerReportController extends Controller
     {
         $fileName = basename($file);
 
-        if (! preg_match('/^sms_report[0-9A-Za-z._-]*\.csv$/', $fileName)) {
+        if (! preg_match('/^sam_export[0-9A-Za-z._-]*\.csv$/', $fileName)) {
             abort(404);
         }
 
-        $path = base_path('scripts/lending_tower/' . $fileName);
+        $path = base_path('EE/' . $fileName);
 
         if (! File::exists($path)) {
             abort(404);
