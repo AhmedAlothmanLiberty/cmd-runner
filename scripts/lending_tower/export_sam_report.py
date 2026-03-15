@@ -21,6 +21,7 @@ Options:
 """
 import argparse
 import csv
+import os
 import sys
 import time
 from datetime import date
@@ -198,6 +199,12 @@ def main():
 
     file_mode = "a" if args.resume_from_drop else "w"
     print(f"{'Appending to' if args.resume_from_drop else 'Writing'} report: {output_path}")
+
+    # Ensure output directory exists
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        print(f"  Created directory: {output_dir}")
 
     with open(output_path, file_mode, newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
