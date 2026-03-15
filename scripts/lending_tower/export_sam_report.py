@@ -146,7 +146,7 @@ def update_send_dates(mssql_conn, pks, send_date):
         placeholders = ",".join(["%s"] * len(batch))
         cursor.execute(
             f"UPDATE dbo.TblMailersUnique SET sms_send_date = %s WHERE PK IN ({placeholders})",
-            [send_date] + batch,
+            tuple([send_date] + batch),
         )
         mssql_conn.commit()
     cursor.close()
