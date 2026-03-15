@@ -5,20 +5,24 @@ Outputs CSV in Sam's exact format:
     First name, address, debt load, phone1, phone2, phone3, phone4, phone5, send date
 
 One row per person (not per phone). Only rows with at least one phone.
-Newest mailer records first.
+Processes one Drop_Name at a time for low memory usage and resumability.
 
 Usage:
     python export_sam_report.py --count 0 [--output report.csv] [--update-send-date]
+    python export_sam_report.py --count 4500000 --unsent-only --resume-from-drop "DROP_123"
 
 Options:
-    --count             Number of records (0 = all enriched)
-    --output            Output CSV path (default: sam_report_YYYY-MM-DD.csv)
-    --update-send-date  Set sms_send_date to today for exported records
-    --unsent-only       Only export rows where sms_send_date IS NULL
+    --count               Number of records (0 = all enriched)
+    --output              Output CSV path (default: sam_report_YYYY-MM-DD.csv)
+    --update-send-date    Set sms_send_date to today for exported records
+    --unsent-only         Only export rows where sms_send_date IS NULL
+    --resume-from-drop    Resume from this Drop_Name (skip drops already exported)
+    --ensure-index        Create index on Drop_Name before export
 """
 import argparse
 import csv
 import sys
+import time
 from datetime import date
 
 import pymssql
@@ -57,45 +61,78 @@ def format_debt_load(value):
     return f"{numeric:.2f}".rstrip("0").rstrip(".")
 
 
-def fetch_enriched(mssql_conn, count, unsent_only, chunk_size=50000):
-    """Fetch enriched rows from TblMailersUnique in chunks."""
-    cursor = mssql_conn.cursor(as_dict=True)
-    
+def ensure_index(mssql_conn):
+    """Create index on Drop_Name if it doesn't exist."""
+    cursor = mssql_conn.cursor()
+    print("Checking index on Drop_Name...")
+    cursor.execute("""
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE name = 'IX_TblMailersUnique_DropName'
+              AND object_id = OBJECT_ID('dbo.TblMailersUnique')
+        )
+        BEGIN
+            CREATE NONCLUSTERED INDEX IX_TblMailersUnique_DropName
+            ON dbo.TblMailersUnique (Drop_Name)
+            INCLUDE (phone1, sms_send_date);
+            SELECT 'CREATED' AS result;
+        END
+        ELSE
+            SELECT 'EXISTS' AS result;
+    """)
+    row = cursor.fetchone()
+    result = row[0] if row else "UNKNOWN"
+    print(f"  Index: {result}")
+    mssql_conn.commit()
+    cursor.close()
+
+
+def fetch_distinct_drops(mssql_conn, unsent_only, resume_from_drop=None):
+    """Fetch distinct Drop_Name values, ordered DESC (newest first)."""
+    cursor = mssql_conn.cursor()
+
     where_clause = "WHERE phone1 IS NOT NULL"
     if unsent_only:
         where_clause += " AND sms_send_date IS NULL"
-    
-    total_fetched = 0
-    last_pk = 0
-    
-    while total_fetched < count:
-        remaining = count - total_fetched
-        this_chunk = min(chunk_size, remaining)
-        
-        print(f"  Fetching chunk: {this_chunk:,} rows (total so far: {total_fetched:,})")
-        
-        query = f"""
-            SELECT TOP {int(this_chunk)}
-                PK, Client, Address, Debt_Amount,
-                phone1, phone2, phone3, phone4, phone5,
-                sms_send_date
+    if resume_from_drop:
+        where_clause += f" AND Drop_Name < %s"
+        cursor.execute(f"""
+            SELECT DISTINCT Drop_Name
             FROM dbo.TblMailersUnique
-            {where_clause} AND PK > %s
-            ORDER BY PK ASC
-        """
-        cursor.execute(query, (last_pk,))
-        chunk_rows = cursor.fetchall()
-        
-        if not chunk_rows:
-            break
-            
-        yield from chunk_rows
-        total_fetched += len(chunk_rows)
-        last_pk = max(r["PK"] for r in chunk_rows)
-        
-        print(f"  Progress: {total_fetched:,}/{count:,} fetched")
-    
+            {where_clause}
+            ORDER BY Drop_Name DESC
+        """, (resume_from_drop,))
+    else:
+        cursor.execute(f"""
+            SELECT DISTINCT Drop_Name
+            FROM dbo.TblMailersUnique
+            {where_clause}
+            ORDER BY Drop_Name DESC
+        """)
+
+    drops = [row[0] for row in cursor.fetchall()]
     cursor.close()
+    return drops
+
+
+def fetch_rows_for_drop(mssql_conn, drop_name, unsent_only):
+    """Fetch all enriched rows for a single Drop_Name."""
+    cursor = mssql_conn.cursor(as_dict=True)
+
+    where_clause = "WHERE phone1 IS NOT NULL AND Drop_Name = %s"
+    if unsent_only:
+        where_clause += " AND sms_send_date IS NULL"
+
+    cursor.execute(f"""
+        SELECT PK, Client, Address, Debt_Amount,
+               phone1, phone2, phone3, phone4, phone5
+        FROM dbo.TblMailersUnique
+        {where_clause}
+        ORDER BY PK ASC
+    """, (drop_name,))
+    rows = cursor.fetchall()
+    cursor.close()
+    return rows
 
 
 def update_send_dates(mssql_conn, pks, send_date):
@@ -124,24 +161,28 @@ def main():
                         help="Set sms_send_date to today for exported records")
     parser.add_argument("--unsent-only", action="store_true",
                         help="Only export rows where sms_send_date IS NULL")
+    parser.add_argument("--resume-from-drop", type=str, default=None,
+                        help="Resume from this Drop_Name (skip already exported drops)")
+    parser.add_argument("--ensure-index", action="store_true",
+                        help="Create index on Drop_Name before export")
     args = parser.parse_args()
 
     output_path = args.output or f"sam_report_{date.today().isoformat()}.csv"
     send_date = date.today().isoformat()
+    count_limit = args.count if args.count > 0 else float("inf")
 
     print("Connecting to SQL Server...")
     conn = get_mssql_connection()
 
-    print("Fetching enriched records...")
-    rows_generator = fetch_enriched(conn, args.count, args.unsent_only)
-    
-    # First, collect all rows to count them (but process in chunks)
-    print("  Collecting all records...")
-    rows = list(rows_generator)
-    print(f"  Found {len(rows)} enriched records.")
+    if args.ensure_index:
+        ensure_index(conn)
 
-    if not rows:
-        print("No enriched records to export.")
+    print("Fetching distinct Drop_Name values...")
+    drops = fetch_distinct_drops(conn, args.unsent_only, args.resume_from_drop)
+    print(f"  Found {len(drops)} distinct drops to export.")
+
+    if not drops:
+        print("No enriched drops to export.")
         conn.close()
         return
 
@@ -151,15 +192,36 @@ def main():
         "send date",
     ]
 
-    print(f"Writing report to {output_path}...")
-    with open(output_path, "w", newline="", encoding="utf-8") as f:
+    total_written = 0
+    total_drops = len(drops)
+    start_time = time.time()
+
+    file_mode = "a" if args.resume_from_drop else "w"
+    print(f"{'Appending to' if args.resume_from_drop else 'Writing'} report: {output_path}")
+
+    with open(output_path, file_mode, newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        
-        # Write in batches to avoid memory issues
-        for i in range(0, len(rows), 10000):
-            batch = rows[i:i + 10000]
-            for row in batch:
+        if not args.resume_from_drop:
+            writer.writeheader()
+
+        for drop_idx, drop_name in enumerate(drops, 1):
+            if total_written >= count_limit:
+                print(f"\n  Reached --count limit ({int(count_limit):,}). Stopping.")
+                break
+
+            drop_start = time.time()
+            rows = fetch_rows_for_drop(conn, drop_name, args.unsent_only)
+
+            if not rows:
+                continue
+
+            # Trim to count limit
+            remaining = int(count_limit - total_written)
+            if len(rows) > remaining:
+                rows = rows[:remaining]
+
+            pks = []
+            for row in rows:
                 writer.writerow({
                     "First name": parse_first_name(row.get("Client", "")),
                     "address": (row.get("Address", "") or "").upper(),
@@ -171,20 +233,32 @@ def main():
                     "phone5": row.get("phone5", "") or "",
                     "send date": send_date,
                 })
-            print(f"  Written {min(i + 10000, len(rows)):,}/{len(rows):,} rows")
+                pks.append(row["PK"])
 
-    print(f"Report written: {output_path} ({len(rows)} rows)")
+            if args.update_send_date:
+                update_send_dates(conn, pks, send_date)
 
+            total_written += len(rows)
+            elapsed = time.time() - start_time
+            drop_elapsed = time.time() - drop_start
+
+            print(
+                f"  [{drop_idx}/{total_drops}] Drop {drop_name}: "
+                f"{len(rows):,} rows ({drop_elapsed:.1f}s) | "
+                f"Total: {total_written:,} | Elapsed: {elapsed:.0f}s"
+            )
+
+    elapsed = time.time() - start_time
+    print(f"\n{'='*60}")
+    print(f"Done in {elapsed:.1f}s ({elapsed/60:.1f}m).")
+    print(f"  Report: {output_path}")
+    print(f"  Total rows written: {total_written:,}")
+    print(f"  Drops processed: {min(drop_idx, total_drops)}/{total_drops}")
     if args.update_send_date:
-        print("Updating sms_send_date for exported records...")
-        pks = [r["PK"] for r in rows]
-        update_send_dates(conn, pks, send_date)
-        print(f"  Updated {len(pks)} records.")
+        print(f"  sms_send_date updated to: {send_date}")
     else:
-        print("sms_send_date NOT updated (use --update-send-date to mark them).")
-
-    conn.close()
-    print("Done.")
+        print("  sms_send_date NOT updated (use --update-send-date to mark them).")
+    print(f"{'='*60}")
 
 
 if __name__ == "__main__":
