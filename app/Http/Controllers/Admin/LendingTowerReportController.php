@@ -16,19 +16,24 @@ class LendingTowerReportController extends Controller
             ->filter(static fn (string $path): bool => File::exists($path))
             ->map(function (string $path): array {
                 $size = File::size($path);
+                $rowCount = $this->countCsvRows($path);
 
                 return [
                     'name' => basename($path),
                     'size_bytes' => $size,
                     'size_human' => $this->formatBytes($size),
+                    'row_count' => $rowCount,
                     'modified_at' => Carbon::createFromTimestamp(File::lastModified($path)),
                 ];
             })
             ->sortByDesc(static fn (array $file): int => $file['modified_at']->getTimestamp())
             ->values();
 
+        $totalRows = $files->sum('row_count');
+        $totalSize = $files->sum('size_bytes');
+
         $latestFile = $files->first();
-        [$previewHeader, $previewRows, $rowCount] = $latestFile
+        [$previewHeader, $previewRows, $previewRowCount] = $latestFile
             ? $this->previewCsv(base_path('EE/' . $latestFile['name']))
             : [[], [], 0];
 
@@ -37,7 +42,10 @@ class LendingTowerReportController extends Controller
             'latestFile' => $latestFile,
             'previewHeader' => $previewHeader,
             'previewRows' => $previewRows,
-            'rowCount' => $rowCount,
+            'rowCount' => $latestFile['row_count'] ?? 0,
+            'totalRows' => $totalRows,
+            'totalSize' => $this->formatBytes($totalSize),
+            'totalFiles' => $files->count(),
         ]);
     }
 
@@ -86,6 +94,22 @@ class LendingTowerReportController extends Controller
         fclose($handle);
 
         return [$header, $rows, $rowCount];
+    }
+
+    protected function countCsvRows(string $path): int
+    {
+        $handle = fopen($path, 'r');
+        if ($handle === false) {
+            return 0;
+        }
+
+        $count = 0;
+        while (fgets($handle) !== false) {
+            $count++;
+        }
+        fclose($handle);
+
+        return max(0, $count - 1);
     }
 
     protected function formatBytes(int $bytes): string

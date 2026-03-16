@@ -34,28 +34,35 @@
         </div>
     @else
         <div class="row g-3 mb-4">
-            <div class="col-12 col-md-4">
-                <div class="card shadow-sm border-0 lt-stat-card h-100">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0 lt-stat-card h-100 bg-primary text-white">
                     <div class="card-body">
-                        <div class="text-muted text-uppercase small fw-semibold mb-2">Latest file</div>
-                        <div class="fw-semibold">{{ $latestFile['name'] }}</div>
-                        <div class="small text-muted mt-1">Updated {{ $latestFile['modified_at']->diffForHumans() }}</div>
+                        <div class="text-uppercase small fw-semibold mb-2 opacity-75">Total Records</div>
+                        <div class="h3 mb-0">{{ number_format($totalRows) }}</div>
                     </div>
                 </div>
             </div>
-            <div class="col-12 col-md-4">
-                <div class="card shadow-sm border-0 lt-stat-card h-100">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0 lt-stat-card h-100 bg-success text-white">
                     <div class="card-body">
-                        <div class="text-muted text-uppercase small fw-semibold mb-2">Rows in file</div>
-                        <div class="h4 mb-0">{{ number_format($rowCount) }}</div>
+                        <div class="text-uppercase small fw-semibold mb-2 opacity-75">Total Size</div>
+                        <div class="h3 mb-0">{{ $totalSize }}</div>
                     </div>
                 </div>
             </div>
-            <div class="col-12 col-md-4">
+            <div class="col-6 col-md-3">
                 <div class="card shadow-sm border-0 lt-stat-card h-100">
                     <div class="card-body">
-                        <div class="text-muted text-uppercase small fw-semibold mb-2">File size</div>
-                        <div class="h4 mb-0">{{ $latestFile['size_human'] }}</div>
+                        <div class="text-muted text-uppercase small fw-semibold mb-2">Total Files</div>
+                        <div class="h3 mb-0">{{ $totalFiles }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm border-0 lt-stat-card h-100">
+                    <div class="card-body">
+                        <div class="text-muted text-uppercase small fw-semibold mb-2">Latest Update</div>
+                        <div class="h6 mb-0">{{ $latestFile['modified_at']->diffForHumans() }}</div>
                     </div>
                 </div>
             </div>
@@ -111,6 +118,7 @@
                                 <div>
                                     <div class="fw-semibold">{{ $file['name'] }}</div>
                                     <small class="text-muted">
+                                        <span class="badge bg-secondary me-1">{{ number_format($file['row_count']) }} rows</span>
                                         {{ $file['size_human'] }} · {{ $file['modified_at']->format('Y-m-d H:i') }}
                                     </small>
                                 </div>
