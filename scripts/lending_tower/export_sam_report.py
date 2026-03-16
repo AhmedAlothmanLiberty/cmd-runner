@@ -166,6 +166,10 @@ def main():
                         help="Resume from this Drop_Name (skip already exported drops)")
     parser.add_argument("--ensure-index", action="store_true",
                         help="Create index on Drop_Name before export")
+    parser.add_argument("--worker-id", type=int, default=1,
+                        help="Worker ID for parallel processing (1-indexed)")
+    parser.add_argument("--total-workers", type=int, default=1,
+                        help="Total number of parallel workers")
     args = parser.parse_args()
 
     output_path = args.output or f"sam_report_{date.today().isoformat()}.csv"
@@ -179,11 +183,18 @@ def main():
         ensure_index(conn)
 
     print("Fetching distinct Drop_Name values...")
-    drops = fetch_distinct_drops(conn, args.unsent_only, args.resume_from_drop)
-    print(f"  Found {len(drops)} distinct drops to export.")
+    all_drops = fetch_distinct_drops(conn, args.unsent_only, args.resume_from_drop)
+    print(f"  Found {len(all_drops)} distinct drops total.")
+
+    # Split drops among workers
+    if args.total_workers > 1:
+        drops = [d for i, d in enumerate(all_drops) if (i % args.total_workers) == (args.worker_id - 1)]
+        print(f"  Worker {args.worker_id}/{args.total_workers}: processing {len(drops)} drops")
+    else:
+        drops = all_drops
 
     if not drops:
-        print("No enriched drops to export.")
+        print("No enriched drops to export for this worker.")
         conn.close()
         return
 
