@@ -234,7 +234,7 @@ def main():
                 continue
 
             # Trim to count limit
-            remaining = int(count_limit - total_written)
+            remaining = int(count_limit - total_written) if count_limit != float("inf") else len(rows)
             if len(rows) > remaining:
                 rows = rows[:remaining]
 
