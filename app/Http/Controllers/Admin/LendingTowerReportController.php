@@ -12,14 +12,18 @@ class LendingTowerReportController extends Controller
 {
     public function index(): View
     {
-        $files = collect(File::glob(base_path('EE/sam_export*.csv')))
+        $files = collect()
+            ->merge(File::glob(base_path('EE/sam_export*.csv')))
+            ->merge(File::glob(base_path('EE/chunks/sam_export*.csv')))
             ->filter(static fn (string $path): bool => File::exists($path))
             ->map(function (string $path): array {
                 $size = File::size($path);
                 $rowCount = $this->countCsvRows($path);
+                $relativePath = str_replace(base_path('EE/'), '', $path);
 
                 return [
                     'name' => basename($path),
+                    'relative_path' => $relativePath,
                     'size_bytes' => $size,
                     'size_human' => $this->formatBytes($size),
                     'row_count' => $rowCount,
@@ -34,7 +38,7 @@ class LendingTowerReportController extends Controller
 
         $latestFile = $files->first();
         [$previewHeader, $previewRows, $previewRowCount] = $latestFile
-            ? $this->previewCsv(base_path('EE/' . $latestFile['name']))
+            ? $this->previewCsv(base_path('EE/' . $latestFile['relative_path']))
             : [[], [], 0];
 
         return view('admin.lending-tower.index', [
@@ -57,15 +61,21 @@ class LendingTowerReportController extends Controller
             abort(404);
         }
 
-        $path = base_path('EE/' . $fileName);
+        // Check both EE/ root and EE/chunks/ subdirectory
+        $paths = [
+            base_path('EE/' . $fileName),
+            base_path('EE/chunks/' . $fileName),
+        ];
 
-        if (! File::exists($path)) {
-            abort(404);
+        foreach ($paths as $path) {
+            if (File::exists($path)) {
+                return response()->download($path, $fileName, [
+                    'Content-Type' => 'text/csv; charset=UTF-8',
+                ]);
+            }
         }
 
-        return response()->download($path, $fileName, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-        ]);
+        abort(404);
     }
 
     protected function previewCsv(string $path, int $limit = 15): array
