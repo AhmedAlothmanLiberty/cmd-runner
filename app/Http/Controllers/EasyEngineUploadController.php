@@ -16,9 +16,7 @@ class EasyEngineUploadController extends Controller
 {
     public function form()
     {
-        return view('easyengine.upload', [
-            'uploadConfig' => $this->uploadConfig(),
-        ]);
+        return view('easyengine.upload');
     }
 
     public function upload(Request $request)
@@ -28,7 +26,7 @@ class EasyEngineUploadController extends Controller
                 'required',
                 'file',
                 'max:1048576', // 1 GB
-                'mimes:csv,txt',
+                'mimetypes:text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             ],
 
             'state'     => ['required', 'string', 'max:10'],
@@ -36,14 +34,11 @@ class EasyEngineUploadController extends Controller
         ]);
 
         $file  = $request->file('file');
-        $date  = Carbon::parse($data['drop_date']);
+        $date  = \Carbon\Carbon::parse($data['drop_date']);
         $state = strtoupper(trim($data['state']));
 
-        $targetBuckets = $this->resolveTargetBuckets();
-        if ($targetBuckets === []) {
-            abort(500, 'Missing EE_S3_BUCKET in .env');
-        }
-        $primaryBucket = $targetBuckets[0];
+        $bucket = env('EE_S3_BUCKET');
+        if (!$bucket) abort(500, 'Missing EE_S3_BUCKET in .env');
 
         $safeOriginal = preg_replace('/[^A-Za-z0-9._-]+/', '_', $file->getClientOriginalName());
 
@@ -89,101 +84,21 @@ class EasyEngineUploadController extends Controller
             'sha256'        => $sha256,
             'drop_date'     => $date->toDateString(),
             'state'         => $state,
-            's3_bucket'     => $primaryBucket,
+            's3_bucket'     => $bucket,
             's3_key'        => $key,
             'status'        => S3UploadJob::STATUS_QUEUED, // add this const if missing
-            'meta'          => [
-                'phase' => 'queued',
-                'target_buckets' => $targetBuckets,
-            ],
+            'meta'          => ['phase' => 'queued'],
         ]);
 
         EasyEngineProcessUpload::dispatch($job->id);
 
-        $destinations = implode(', ', array_map(
-            static fn (string $bucket): string => "s3://{$bucket}/{$key}",
-            $targetBuckets
-        ));
+        $destinations = "s3://{$bucket}/{$key}";
+        $secondaryBucket = env('EE_S3_BUCKET_SECONDARY');
+        if ($secondaryBucket) {
+            $destinations .= " and s3://{$secondaryBucket}/{$key}";
+        }
 
         return back()->with('ok', "Queued job #{$job->id}. It will upload parquet to {$destinations}");
-    }
-
-    private function resolveTargetBuckets(): array
-    {
-        $buckets = [];
-
-        $bucket = trim((string) env('EE_S3_BUCKET', ''));
-        if ($bucket !== '') {
-            $buckets[] = $bucket;
-        }
-
-        return array_values(array_unique($buckets));
-    }
-
-    private function uploadConfig(): array
-    {
-        $appMaxBytes = 1024 * 1024 * 1024;
-        $phpUploadMaxBytes = $this->parseIniSize((string) ini_get('upload_max_filesize'));
-        $phpPostMaxBytes = $this->parseIniSize((string) ini_get('post_max_size'));
-        $effectiveBytes = min(
-            $this->normalizeIniLimit($phpUploadMaxBytes),
-            $this->normalizeIniLimit($phpPostMaxBytes)
-        );
-
-        return [
-            'app_max_bytes' => $appMaxBytes,
-            'app_max_label' => $this->formatBytes($appMaxBytes),
-            'php_upload_max_label' => $this->formatIniLimit($phpUploadMaxBytes),
-            'php_post_max_label' => $this->formatIniLimit($phpPostMaxBytes),
-            'effective_label' => $this->formatIniLimit($effectiveBytes),
-            'supports_target_upload' => $effectiveBytes >= $appMaxBytes,
-        ];
-    }
-
-    private function parseIniSize(string $value): int
-    {
-        $value = trim($value);
-        if ($value === '') {
-            return 0;
-        }
-
-        $unit = strtolower(substr($value, -1));
-        $number = (float) $value;
-
-        return match ($unit) {
-            'g' => (int) round($number * 1024 * 1024 * 1024),
-            'm' => (int) round($number * 1024 * 1024),
-            'k' => (int) round($number * 1024),
-            default => (int) round((float) $value),
-        };
-    }
-
-    private function normalizeIniLimit(int $bytes): int
-    {
-        return $bytes > 0 ? $bytes : PHP_INT_MAX;
-    }
-
-    private function formatIniLimit(int $bytes): string
-    {
-        if ($bytes <= 0 || $bytes === PHP_INT_MAX) {
-            return 'unlimited';
-        }
-
-        return $this->formatBytes($bytes);
-    }
-
-    private function formatBytes(int $bytes): string
-    {
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $size = (float) $bytes;
-        $unitIndex = 0;
-
-        while ($size >= 1024 && $unitIndex < count($units) - 1) {
-            $size /= 1024;
-            $unitIndex++;
-        }
-
-        return sprintf($size >= 10 || $unitIndex === 0 ? '%.0f %s' : '%.1f %s', $size, $units[$unitIndex]);
     }
 
     private function makeParquetPath(string $csvStoredPath, string $parquetFileName): string
