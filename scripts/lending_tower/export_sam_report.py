@@ -2,9 +2,10 @@
 Phase 4: Export enriched records from TblMailersUnique for Sam.
 
 Outputs CSV in Sam's exact format:
-    First name, address, debt load, phone1, phone2, phone3, phone4, phone5, send date
+    First name, address, debt load, cell phone, send date
 
-One row per person (not per phone). Only rows with at least one phone.
+One row per phone number (not per person). A person with 5 phones = 5 rows.
+Only exports rows with debt_amount > 0 and at least one phone.
 Processes one Drop_Name at a time for low memory usage and resumability.
 
 Usage:
@@ -12,7 +13,7 @@ Usage:
     python export_sam_report.py --count 4500000 --unsent-only --resume-from-drop "DROP_123"
 
 Options:
-    --count               Number of records (0 = all enriched)
+    --count               Number of rows (0 = all enriched)
     --output              Output CSV path (default: sam_report_YYYY-MM-DD.csv)
     --update-send-date    Set sms_send_date to today for exported records
     --unsent-only         Only export rows where sms_send_date IS NULL
@@ -120,7 +121,7 @@ def fetch_rows_for_drop(mssql_conn, drop_name, unsent_only):
     """Fetch all enriched rows for a single Drop_Name."""
     cursor = mssql_conn.cursor(as_dict=True)
 
-    where_clause = "WHERE phone1 IS NOT NULL AND Drop_Name = %s"
+    where_clause = "WHERE phone1 IS NOT NULL AND Drop_Name = %s AND Debt_Amount > 0"
     if unsent_only:
         where_clause += " AND sms_send_date IS NULL"
 
@@ -199,9 +200,7 @@ def main():
         return
 
     fieldnames = [
-        "First name", "address", "debt load",
-        "phone1", "phone2", "phone3", "phone4", "phone5",
-        "send date",
+        "First name", "address", "debt load", "cell phone", "send date"
     ]
 
     total_written = 0
@@ -239,30 +238,47 @@ def main():
                 rows = rows[:remaining]
 
             pks = []
+            rows_written_this_drop = 0
             for row in rows:
-                writer.writerow({
-                    "First name": parse_first_name(row.get("Client", "")),
-                    "address": (row.get("Address", "") or "").upper(),
-                    "debt load": format_debt_load(row.get("Debt_Amount", "")),
-                    "phone1": row.get("phone1", "") or "",
-                    "phone2": row.get("phone2", "") or "",
-                    "phone3": row.get("phone3", "") or "",
-                    "phone4": row.get("phone4", "") or "",
-                    "phone5": row.get("phone5", "") or "",
-                    "send date": send_date,
-                })
+                first_name = parse_first_name(row.get("Client", ""))
+                address = (row.get("Address", "") or "").upper()
+                debt_load = format_debt_load(row.get("Debt_Amount", ""))
+                
+                # Collect all non-empty phones
+                phones = []
+                for phone_col in ["phone1", "phone2", "phone3", "phone4", "phone5"]:
+                    phone = row.get(phone_col, "") or ""
+                    if phone.strip():
+                        phones.append(phone.strip())
+                
+                # Write one row per phone
+                for phone in phones:
+                    if total_written >= count_limit:
+                        break
+                    writer.writerow({
+                        "First name": first_name,
+                        "address": address,
+                        "debt load": debt_load,
+                        "cell phone": phone,
+                        "send date": send_date,
+                    })
+                    total_written += 1
+                    rows_written_this_drop += 1
+                
                 pks.append(row["PK"])
+                
+                if total_written >= count_limit:
+                    break
 
             if args.update_send_date:
                 update_send_dates(conn, pks, send_date)
 
-            total_written += len(rows)
             elapsed = time.time() - start_time
             drop_elapsed = time.time() - drop_start
 
             print(
                 f"  [{drop_idx}/{total_drops}] Drop {drop_name}: "
-                f"{len(rows):,} rows ({drop_elapsed:.1f}s) | "
+                f"{rows_written_this_drop:,} rows ({drop_elapsed:.1f}s) | "
                 f"Total: {total_written:,} | Elapsed: {elapsed:.0f}s"
             )
 
