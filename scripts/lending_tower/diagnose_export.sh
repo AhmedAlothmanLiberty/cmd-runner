@@ -10,7 +10,7 @@
 # Safety: Does NOT kill processes unless DRY_RUN=false
 #===============================================================================
 
-set -euo pipefail
+set -eo pipefail
 
 # Configuration
 DRY_RUN="${DRY_RUN:-true}"
@@ -224,22 +224,23 @@ echo ""
 #-------------------------------------------------------------------------------
 # 5. Stale process handling
 #-------------------------------------------------------------------------------
-if [[ ${#STALE_PIDS[@]} -gt 0 ]]; then
+STALE_LIST="${!STALE_PIDS[*]:-}"
+if [[ -n "$STALE_LIST" ]]; then
     log_info ""
     log_info "=== STEP 5: Stale Process Handling ==="
-    log_warn "Found ${#STALE_PIDS[@]} stale process(es): ${!STALE_PIDS[*]}"
+    log_warn "Found stale process(es): $STALE_LIST"
     
     if [[ "$DRY_RUN" == "true" ]]; then
-        log_info "DRY_RUN=true - Would send SIGTERM to: ${!STALE_PIDS[*]}"
+        log_info "DRY_RUN=true - Would send SIGTERM to: $STALE_LIST"
         log_info "To actually kill, run: DRY_RUN=false $0"
     else
-        for pid in "${!STALE_PIDS[@]}"; do
+        for pid in $STALE_LIST; do
             log_warn "Sending SIGTERM to PID $pid..."
             kill -TERM "$pid" 2>/dev/null || log_error "Failed to send SIGTERM to $pid"
         done
         log_info "Waiting 30 seconds for graceful shutdown..."
         sleep 30
-        for pid in "${!STALE_PIDS[@]}"; do
+        for pid in $STALE_LIST; do
             if ps -p "$pid" > /dev/null 2>&1; then
                 log_warn "PID $pid still alive, sending SIGKILL..."
                 kill -9 "$pid" 2>/dev/null || true
@@ -256,9 +257,10 @@ fi
 # 6. Summary and Recommendations
 #-------------------------------------------------------------------------------
 log_info ""
-log_info "=== SUMMARY ==="
-log_info "Active processes: ${#PIDS[@]}"
-log_info "Stale processes:  ${#STALE_PIDS[@]}"
+log_info "=== STEP 5: SUMMARY ==="
+ACTIVE_COUNT=${#PIDS[@]:-0}
+log_info "Active processes: $ACTIVE_COUNT"
+log_info "Stale processes:  ${STALE_LIST:-none}"
 log_info "Log file: $LOG_FILE"
 
 echo ""
