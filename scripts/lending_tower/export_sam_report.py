@@ -2,9 +2,9 @@
 Phase 4: Export enriched records from TblMailersUnique for Sam.
 
 Outputs CSV in Sam's exact format:
-    First name, address, debt load, cell phone, send date
+    First name, address, debt load, phone1, phone2, phone3, phone4, phone5, send date
 
-One row per phone number (not per person). A person with 5 phones = 5 rows.
+One row per person. All phones in columns phone1-phone5.
 Only exports rows with debt_amount > 0 and at least one phone.
 Splits output into 1M-row files automatically.
 Auto-resumes from last completed drop via a .progress file.
@@ -38,7 +38,7 @@ from config import (
 BATCH_SIZE = 10000
 ROWS_PER_FILE = 1_000_000
 
-FIELDNAMES = ["First name", "address", "debt load", "cell phone", "send date"]
+FIELDNAMES = ["First name", "address", "debt load", "phone1", "phone2", "phone3", "phone4", "phone5", "send date"]
 
 
 def get_mssql_connection():
@@ -258,33 +258,34 @@ def main():
                 address = (row.get("Address", "") or "").upper()
                 debt_load = format_debt_load(row.get("Debt_Amount", ""))
 
-                phones = []
+                phones = {}
                 for col in ["phone1", "phone2", "phone3", "phone4", "phone5"]:
-                    p = row.get(col, "") or ""
-                    if p.strip():
-                        phones.append(p.strip())
+                    phones[col] = (row.get(col, "") or "").strip()
 
-                for phone in phones:
-                    if total_written >= count_limit:
-                        break
+                if total_written >= count_limit:
+                    break
 
-                    # Rotate to new file if current file is full
-                    if rows_in_current_file >= rows_per_file:
-                        fh.close()
-                        part_num += 1
-                        rows_in_current_file = 0
-                        fh, writer, current_path = open_part_file(args.output_dir, prefix, part_num)
+                # Rotate to new file if current file is full
+                if rows_in_current_file >= rows_per_file:
+                    fh.close()
+                    part_num += 1
+                    rows_in_current_file = 0
+                    fh, writer, current_path = open_part_file(args.output_dir, prefix, part_num)
 
-                    writer.writerow({
-                        "First name": first_name,
-                        "address": address,
-                        "debt load": debt_load,
-                        "cell phone": phone,
-                        "send date": send_date,
-                    })
-                    total_written += 1
-                    rows_in_current_file += 1
-                    rows_written_this_drop += 1
+                writer.writerow({
+                    "First name": first_name,
+                    "address": address,
+                    "debt load": debt_load,
+                    "phone1": phones["phone1"],
+                    "phone2": phones["phone2"],
+                    "phone3": phones["phone3"],
+                    "phone4": phones["phone4"],
+                    "phone5": phones["phone5"],
+                    "send date": send_date,
+                })
+                total_written += 1
+                rows_in_current_file += 1
+                rows_written_this_drop += 1
 
                 pks.append(row["PK"])
 
