@@ -251,48 +251,59 @@ def main():
             drop_start = time.time()
             pks = []
             rows_written_this_drop = 0
+            drop_timeout = 300  # 5 minutes max per drop
 
-            for row in fetch_rows_for_drop_batched(conn, drop_name, args.unsent_only):
-                if total_written >= count_limit:
-                    break
+            try:
+                for row in fetch_rows_for_drop_batched(conn, drop_name, args.unsent_only):
+                    if total_written >= count_limit:
+                        break
 
-                first_name = parse_first_name(row.get("Client", ""))
-                address = (row.get("Address", "") or "").upper()
-                debt_load = format_debt_load(row.get("Debt_Amount", ""))
+                    # Check timeout every 1000 rows
+                    if rows_written_this_drop > 0 and rows_written_this_drop % 1000 == 0:
+                        if time.time() - drop_start > drop_timeout:
+                            print(f"  WARNING: Drop {drop_name} taking too long, skipping after {rows_written_this_drop:,} rows")
+                            break
 
-                phones = {}
-                for col in ["phone1", "phone2", "phone3", "phone4", "phone5"]:
-                    phones[col] = (row.get(col, "") or "").strip()
+                    first_name = parse_first_name(row.get("Client", ""))
+                    address = (row.get("Address", "") or "").upper()
+                    debt_load = format_debt_load(row.get("Debt_Amount", ""))
 
-                if total_written >= count_limit:
-                    break
+                    phones = {}
+                    for col in ["phone1", "phone2", "phone3", "phone4", "phone5"]:
+                        phones[col] = (row.get(col, "") or "").strip()
 
-                # Rotate to new file if current file is full
-                if rows_in_current_file >= rows_per_file:
-                    fh.close()
-                    part_num += 1
-                    rows_in_current_file = 0
-                    fh, writer, current_path = open_part_file(args.output_dir, prefix, part_num)
+                    if total_written >= count_limit:
+                        break
 
-                writer.writerow({
-                    "First name": first_name,
-                    "address": address,
-                    "debt load": debt_load,
-                    "phone1": phones["phone1"],
-                    "phone2": phones["phone2"],
-                    "phone3": phones["phone3"],
-                    "phone4": phones["phone4"],
-                    "phone5": phones["phone5"],
-                    "send date": send_date,
-                })
-                total_written += 1
-                rows_in_current_file += 1
-                rows_written_this_drop += 1
+                    # Rotate to new file if current file is full
+                    if rows_in_current_file >= rows_per_file:
+                        fh.close()
+                        part_num += 1
+                        rows_in_current_file = 0
+                        fh, writer, current_path = open_part_file(args.output_dir, prefix, part_num)
 
-                pks.append(row["PK"])
+                    writer.writerow({
+                        "First name": first_name,
+                        "address": address,
+                        "debt load": debt_load,
+                        "phone1": phones["phone1"],
+                        "phone2": phones["phone2"],
+                        "phone3": phones["phone3"],
+                        "phone4": phones["phone4"],
+                        "phone5": phones["phone5"],
+                        "send date": send_date,
+                    })
+                    total_written += 1
+                    rows_in_current_file += 1
+                    rows_written_this_drop += 1
 
-                if total_written >= count_limit:
-                    break
+                    pks.append(row["PK"])
+
+                    if total_written >= count_limit:
+                        break
+            except Exception as e:
+                print(f"  ERROR processing drop {drop_name}: {e}")
+                rows_written_this_drop = 0
 
             if args.update_send_date:
                 update_send_dates(conn, pks, send_date)
