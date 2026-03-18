@@ -99,13 +99,13 @@ def fetch_distinct_drops(mssql_conn, unsent_only, resume_from_drop=None):
         where += " AND sms_send_date IS NULL"
     if resume_from_drop:
         cursor.execute(
-            f"SELECT DISTINCT Drop_Name FROM dbo.TblMailersUnique "
+            f"SELECT DISTINCT Drop_Name FROM dbo.TblMailersUnique WITH (INDEX(IX_TblMailersUnique_DropName)) "
             f"{where} AND Drop_Name < %s ORDER BY Drop_Name DESC",
             (resume_from_drop,)
         )
     else:
         cursor.execute(
-            f"SELECT DISTINCT Drop_Name FROM dbo.TblMailersUnique "
+            f"SELECT DISTINCT Drop_Name FROM dbo.TblMailersUnique WITH (INDEX(IX_TblMailersUnique_DropName)) "
             f"{where} ORDER BY Drop_Name DESC"
         )
     drops = [row[0] for row in cursor.fetchall()]
