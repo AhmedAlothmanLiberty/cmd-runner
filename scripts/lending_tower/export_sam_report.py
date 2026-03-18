@@ -113,19 +113,26 @@ def fetch_distinct_drops(mssql_conn, unsent_only, resume_from_drop=None):
     return drops
 
 
-def fetch_rows_for_drop(mssql_conn, drop_name, unsent_only):
+def fetch_rows_for_drop_batched(mssql_conn, drop_name, unsent_only, batch_size=10000):
+    """Generator that yields rows in batches to avoid memory/timeout issues."""
     cursor = mssql_conn.cursor(as_dict=True)
-    where = "WHERE phone1 IS NOT NULL AND Drop_Name = %s AND Debt_Amount > 0"
-    if unsent_only:
-        where += " AND sms_send_date IS NULL"
-    cursor.execute(
-        f"SELECT PK, Client, Address, Debt_Amount, phone1, phone2, phone3, phone4, phone5 "
-        f"FROM dbo.TblMailersUnique {where} ORDER BY PK ASC",
-        (drop_name,)
-    )
-    rows = cursor.fetchall()
+    last_pk = 0
+    while True:
+        where = "WHERE phone1 IS NOT NULL AND Drop_Name = %s AND Debt_Amount > 0 AND PK > %s"
+        if unsent_only:
+            where += " AND sms_send_date IS NULL"
+        cursor.execute(
+            f"SELECT TOP {batch_size} PK, Client, Address, Debt_Amount, phone1, phone2, phone3, phone4, phone5 "
+            f"FROM dbo.TblMailersUnique {where} ORDER BY PK ASC",
+            (drop_name, last_pk)
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            break
+        for row in rows:
+            yield row
+        last_pk = rows[-1]["PK"]
     cursor.close()
-    return rows
 
 
 def update_send_dates(mssql_conn, pks, send_date):
@@ -242,15 +249,10 @@ def main():
                 break
 
             drop_start = time.time()
-            rows = fetch_rows_for_drop(conn, drop_name, args.unsent_only)
-            if not rows:
-                write_progress(progress_file, drop_name, part_num, total_written)
-                continue
-
             pks = []
             rows_written_this_drop = 0
 
-            for row in rows:
+            for row in fetch_rows_for_drop_batched(conn, drop_name, args.unsent_only):
                 if total_written >= count_limit:
                     break
 
