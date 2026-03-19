@@ -38,7 +38,6 @@ def get_mssql_connection():
         user=MSSQL_USER,
         password=MSSQL_PASSWORD,
         database=MSSQL_DATABASE,
-        timeout=60,
         login_timeout=60,
     )
 
