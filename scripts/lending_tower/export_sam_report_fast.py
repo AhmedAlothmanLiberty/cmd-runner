@@ -166,7 +166,7 @@ def main():
                         help="Auto-resume from last completed drop in .progress file")
     args = parser.parse_args()
 
-    prefix = args.prefix or f"sam_export_{date.today().isoformat()}"
+    prefix = args.prefix or f"sam_export_fast_{date.today().isoformat()}"
     send_date = date.today().isoformat()
     count_limit = args.count if args.count > 0 else float("inf")
     rows_per_file = args.rows_per_file
