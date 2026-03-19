@@ -38,6 +38,8 @@ def get_mssql_connection():
         user=MSSQL_USER,
         password=MSSQL_PASSWORD,
         database=MSSQL_DATABASE,
+        timeout=60,
+        login_timeout=60,
     )
 
 
@@ -65,13 +67,13 @@ def fetch_distinct_drops(mssql_conn, unsent_only, resume_from_drop=None):
         where += " AND sms_send_date IS NULL"
     if resume_from_drop:
         cursor.execute(
-            f"SELECT DISTINCT Drop_Name FROM dbo.TblMailersUnique WITH (INDEX(IX_TblMailersUnique_Export)) "
+            f"SELECT DISTINCT Drop_Name FROM dbo.TblMailersUnique "
             f"{where} AND Drop_Name < %s ORDER BY Drop_Name DESC",
             (resume_from_drop,)
         )
     else:
         cursor.execute(
-            f"SELECT DISTINCT Drop_Name FROM dbo.TblMailersUnique WITH (INDEX(IX_TblMailersUnique_Export)) "
+            f"SELECT DISTINCT Drop_Name FROM dbo.TblMailersUnique "
             f"{where} ORDER BY Drop_Name DESC"
         )
     drops = [row[0] for row in cursor.fetchall()]
@@ -79,7 +81,7 @@ def fetch_distinct_drops(mssql_conn, unsent_only, resume_from_drop=None):
     return drops
 
 
-def fetch_rows_for_drop_batched(mssql_conn, drop_name, unsent_only, batch_size=10000):
+def fetch_rows_for_drop_batched(mssql_conn, drop_name, unsent_only, batch_size=5000):
     """Generator that yields rows in batches to avoid memory/timeout issues."""
     cursor = mssql_conn.cursor(as_dict=True)
     last_pk = 0
@@ -89,7 +91,7 @@ def fetch_rows_for_drop_batched(mssql_conn, drop_name, unsent_only, batch_size=1
             where += " AND sms_send_date IS NULL"
         cursor.execute(
             f"SELECT TOP {batch_size} PK, Client, Address, Debt_Amount, phone1, phone2, phone3, phone4, phone5 "
-            f"FROM dbo.TblMailersUnique WITH (INDEX(IX_TblMailersUnique_Export)) {where} ORDER BY PK ASC",
+            f"FROM dbo.TblMailersUnique {where} ORDER BY PK ASC",
             (drop_name, last_pk)
         )
         rows = cursor.fetchall()
@@ -105,8 +107,9 @@ def update_send_dates(mssql_conn, pks, send_date):
     if not pks:
         return
     cursor = mssql_conn.cursor()
-    for i in range(0, len(pks), BATCH_SIZE):
-        batch = pks[i:i + BATCH_SIZE]
+    # Update in smaller batches to avoid deadlocks
+    for i in range(0, len(pks), 1000):
+        batch = pks[i:i + 1000]
         placeholders = ",".join(["%s"] * len(batch))
         cursor.execute(
             f"UPDATE dbo.TblMailersUnique SET sms_send_date = %s WHERE PK IN ({placeholders})",
