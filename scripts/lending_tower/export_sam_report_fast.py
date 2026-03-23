@@ -59,6 +59,30 @@ def format_debt_load(value):
     return f"{numeric:.2f}".rstrip("0").rstrip(".")
 
 
+def format_send_date(value):
+    if value is None:
+        return ""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def fetch_marketing_send_date(mssql_conn, drop_name):
+    cursor = mssql_conn.cursor()
+    cursor.execute(
+        """
+        SELECT TOP 1 Send_Date
+        FROM dbo.TblMarketing
+        WHERE Drop_Name = %s
+        ORDER BY Update_Date DESC, PK DESC
+        """,
+        (drop_name,)
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    return format_send_date(row[0]) if row and row[0] is not None else ""
+
+
 def fetch_distinct_drops(mssql_conn, unsent_only, resume_from_drop=None):
     cursor = mssql_conn.cursor()
     where = "WHERE (phone1 IS NOT NULL OR phone2 IS NOT NULL OR phone3 IS NOT NULL OR phone4 IS NOT NULL OR phone5 IS NOT NULL) AND Debt_Amount > 0"
@@ -181,7 +205,7 @@ def main():
     args = parser.parse_args()
 
     prefix = args.prefix or f"sam_export_fast_{date.today().isoformat()}"
-    send_date = date.today().isoformat()
+    sms_mark_date = date.today().isoformat()
     max_rows = args.max_rows if args.max_rows > 0 else float("inf")
     rows_per_file = args.rows_per_file
 
@@ -230,6 +254,7 @@ def main():
             pks = []
             rows_written_this_drop = 0
             checkpoint_counter = 0
+            drop_send_date = fetch_marketing_send_date(conn, drop_name)
 
             try:
                 for row in fetch_rows_for_drop_batched(conn, drop_name, args.unsent_only):
@@ -263,7 +288,7 @@ def main():
                         "phone3": phones["phone3"],
                         "phone4": phones["phone4"],
                         "phone5": phones["phone5"],
-                        "send date": send_date,
+                        "send date": drop_send_date,
                     })
                     total_written += 1
                     rows_in_current_file += 1
@@ -284,7 +309,7 @@ def main():
                 rows_written_this_drop = 0
 
             if args.update_send_date:
-                update_send_dates(conn, pks, send_date)
+                update_send_dates(conn, pks, sms_mark_date)
 
             write_progress(progress_file, drop_name, last_pk, part_num, total_written, rows_in_current_file)
 
@@ -305,7 +330,7 @@ def main():
     print(f"  Files: {prefix}_001.csv ... {prefix}_{part_num:03d}.csv")
     print(f"  Total rows written: {total_written:,}")
     if args.update_send_date:
-        print(f"  sms_send_date updated to: {send_date}")
+        print(f"  sms_send_date updated to: {sms_mark_date}")
     else:
         print("  sms_send_date NOT updated (use --update-send-date to mark them).")
     print(f"{'='*60}")
