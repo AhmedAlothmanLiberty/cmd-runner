@@ -365,6 +365,7 @@ Examples:
             last_pk = resume_from_pk if resume_from_pk is not None else 0
             rows_written_this_drop = 0
             pks_to_update = []
+            drop_send_date = fetch_marketing_send_date(conn, drop_name)
 
             print(f"\n[{drop_idx}/{total_drops}] Processing drop: {drop_name}")
 
@@ -414,7 +415,7 @@ Examples:
                         "phone3": phones["phone3"],
                         "phone4": phones["phone4"],
                         "phone5": phones["phone5"],
-                        "send date": send_date,
+                        "send date": drop_send_date,
                     })
                     total_written += 1
                     rows_in_current_file += 1
@@ -426,7 +427,7 @@ Examples:
 
                 # Update send dates for this batch
                 if args.update_send_date and pks_to_update:
-                    update_send_dates_batch(conn, pks_to_update, send_date)
+                    update_send_dates_batch(conn, pks_to_update, sms_mark_date)
                     pks_to_update = []
 
                 # Flush file handle
@@ -456,7 +457,7 @@ Examples:
     print(f"  Files created: {prefix}_001.csv ... {prefix}_{part_num:03d}.csv")
     print(f"  Total rows exported: {total_written:,}")
     if args.update_send_date:
-        print(f"  sms_send_date updated to: {send_date}")
+        print(f"  sms_send_date updated to: {sms_mark_date}")
     else:
         print("  sms_send_date was NOT updated")
     print(f"{'='*60}")
