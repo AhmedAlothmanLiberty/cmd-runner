@@ -412,33 +412,59 @@ def run_phone_update_join(cursor, table_name):
     return cursor.rowcount
 
 
+def reconnect_mssql():
+    """Reconnect to SQL Server if connection is dead."""
+    print("  Reconnecting to SQL Server...")
+    return pymssql.connect(
+        server=MSSQL_HOST,
+        port=MSSQL_PORT,
+        user=MSSQL_USER,
+        password=MSSQL_PASSWORD,
+        database=MSSQL_DATABASE
+    )
+
+
 def update_phones_mssql(mssql_conn, phone_map, dry_run):
     if dry_run:
         for pk, phones in list(phone_map.items())[:10]:
             print(f"    PK {pk}: {phones}")
         print(f"  [DRY RUN] Would update {len(phone_map)} rows.")
-        return
+        return mssql_conn
 
     if not phone_map:
-        return
+        return mssql_conn
 
-    cursor = mssql_conn.cursor()
     items = list(phone_map.items())
     t0 = time.time()
-    table_name = recreate_update_stage_table(cursor)
-    mssql_conn.commit()
-    print(f"    Update stage table: {table_name}")
-    stage_phone_updates(cursor, mssql_conn, table_name, items)
-    elapsed = time.time() - t0
-    print(f"    Running UPDATE JOIN for {len(items):,} rows...")
-    updated = run_phone_update_join(cursor, table_name)
-    mssql_conn.commit()
-    total_elapsed = time.time() - t0
-    rate = updated / total_elapsed if total_elapsed > 0 else 0
-    print(f"    Updated {updated}/{len(items)} ({rate:.0f} rows/s)")
-    cursor.execute(f"DROP TABLE {table_name}")
-    mssql_conn.commit()
-    cursor.close()
+    
+    # Retry logic for connection timeouts
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            cursor = mssql_conn.cursor()
+            table_name = recreate_update_stage_table(cursor)
+            mssql_conn.commit()
+            print(f"    Update stage table: {table_name}")
+            stage_phone_updates(cursor, mssql_conn, table_name, items)
+            elapsed = time.time() - t0
+            print(f"    Running UPDATE JOIN for {len(items):,} rows...")
+            updated = run_phone_update_join(cursor, table_name)
+            mssql_conn.commit()
+            total_elapsed = time.time() - t0
+            rate = updated / total_elapsed if total_elapsed > 0 else 0
+            print(f"    Updated {updated}/{len(items)} ({rate:.0f} rows/s)")
+            cursor.execute(f"DROP TABLE {table_name}")
+            mssql_conn.commit()
+            cursor.close()
+            return mssql_conn  # Return connection for reuse
+        except pymssql.OperationalError as e:
+            if attempt < max_retries - 1:
+                print(f"  Connection error (attempt {attempt + 1}/{max_retries}): {e}")
+                mssql_conn = reconnect_mssql()
+            else:
+                raise
+    
+    return mssql_conn
 
 
 # ---------------------------------------------------------------------------
@@ -539,7 +565,7 @@ def main():
 
         if chunk_phone_map:
             print("  Updating SQL Server...")
-            update_phones_mssql(mssql_conn, chunk_phone_map, args.dry_run)
+            mssql_conn = update_phones_mssql(mssql_conn, chunk_phone_map, args.dry_run)
 
         print("  Cleaning up staging...")
         drop_staging_table(athena_client)
