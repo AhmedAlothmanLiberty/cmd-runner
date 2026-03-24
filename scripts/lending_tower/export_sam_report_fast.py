@@ -130,16 +130,37 @@ def update_send_dates(mssql_conn, pks, send_date):
     if not pks:
         return
     cursor = mssql_conn.cursor()
-    # Update in smaller batches to avoid deadlocks
-    for i in range(0, len(pks), 1000):
-        batch = pks[i:i + 1000]
-        placeholders = ",".join(["%s"] * len(batch))
-        cursor.execute(
-            f"UPDATE dbo.TblMailersUnique SET sms_send_date = %s WHERE PK IN ({placeholders})",
-            tuple([send_date] + batch),
-        )
+    
+    # Use temp table for fast bulk update
+    temp_table = f"##export_update_{int(time.time())}"
+    try:
+        # Create temp table
+        cursor.execute(f"CREATE TABLE {temp_table} (PK INT)")
+        
+        # Insert PKs in batches
+        for i in range(0, len(pks), 1000):
+            batch = pks[i:i + 1000]
+            values = ",".join([f"({pk})" for pk in batch])
+            cursor.execute(f"INSERT INTO {temp_table} (PK) VALUES {values}")
+        
+        # Single UPDATE JOIN
+        cursor.execute(f"""
+            UPDATE t
+            SET t.sms_send_date = %s
+            FROM dbo.TblMailersUnique t
+            JOIN {temp_table} tmp ON t.PK = tmp.PK
+        """, (send_date,))
+        
         mssql_conn.commit()
-    cursor.close()
+        
+        # Drop temp table
+        cursor.execute(f"DROP TABLE {temp_table}")
+        mssql_conn.commit()
+    except Exception as e:
+        print(f"  Warning: Update failed: {e}")
+        mssql_conn.rollback()
+    finally:
+        cursor.close()
 
 
 def read_progress(progress_file):
