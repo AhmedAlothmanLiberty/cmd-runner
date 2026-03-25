@@ -62,6 +62,14 @@ def normalize_address(addr):
     return " ".join(normalized)
 
 
+def normalize_zip5(zipcode):
+    """Normalize ZIP/ZIP+4 values to a 5-digit ZIP string."""
+    if not zipcode:
+        return ""
+    digits = re.sub(r"[^0-9]", "", str(zipcode))
+    return digits[:5] if len(digits) >= 5 else ""
+
+
 # ---------------------------------------------------------------------------
 # AWS
 # ---------------------------------------------------------------------------
@@ -166,7 +174,7 @@ def upload_staging_csv(s3_client, records):
     for rec in records:
         first_name, last_name = parse_name(rec["Client"])
         address = rec["Address"].strip().upper() if rec["Address"] else ""
-        zipcode = (rec["Zip"] or "").strip()
+        zipcode = normalize_zip5(rec["Zip"])
         if not first_name:
             skipped += 1
             continue
@@ -305,7 +313,8 @@ def build_enrichment_query(pass_num):
            AND UPPER(n.last_name) = UPPER(m.last_name)
         JOIN "{db}".address a
             ON n.extern_tuid = a.extern_tuid
-           AND a.zip = m.zip
+           AND m.zip <> ''
+           AND SUBSTR(REGEXP_REPLACE(COALESCE(a.zip, ''), '[^0-9]', ''), 1, 5) = m.zip
         """ + phone_join
 
     raise ValueError(f"Unknown pass: {pass_num}")
